@@ -173,7 +173,7 @@ body{
 /* ── DASHBOARD GRID ── */
 .dash-top{
   display:grid;
-  grid-template-columns:1fr 1fr 1fr;
+  grid-template-columns:1fr 1fr 1fr 1fr;
   gap:16px;
   margin-bottom:16px;
 }
@@ -211,6 +211,7 @@ body{
 .stat-card.income::after{background:var(--green)}
 .stat-card.expense::after{background:var(--red)}
 .stat-card.savings::after{background:var(--accent)}
+.stat-card.investment::after{background:var(--purple)}
 .stat-label{font-size:0.75rem;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;display:flex;align-items:center;gap:6px}
 .stat-icon{
   width:22px;height:22px;border-radius:6px;
@@ -222,6 +223,7 @@ body{
 .stat-card.income .stat-num{color:var(--green)}
 .stat-card.expense .stat-num{color:var(--red)}
 .stat-card.savings .stat-num{color:var(--accent)}
+.stat-card.investment .stat-num{color:var(--purple)}
 .stat-card.net .stat-num{color:var(--text)}
 .trend{display:inline-flex;align-items:center;gap:3px;font-size:0.72rem;font-weight:600;padding:2px 7px;border-radius:10px}
 .trend.up{background:var(--green-light);color:var(--green)}
@@ -490,11 +492,15 @@ body{
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
 /* ── RESPONSIVE ── */
+@media(max-width:1100px){
+  .split-buckets{grid-template-columns:1fr 1fr}
+}
 @media(max-width:900px){
   .sidebar{width:200px}
   .main{margin-left:200px}
   .dash-top{grid-template-columns:1fr 1fr}
   .dash-mid,.dash-bottom,.analytics-grid{grid-template-columns:1fr}
+  .split-buckets{grid-template-columns:1fr 1fr}
 }
 @media(max-width:680px){
   .sidebar{display:none}
@@ -524,7 +530,7 @@ body{
   display:flex;height:10px;border-radius:6px;overflow:hidden;gap:2px;margin-bottom:16px;
 }
 .split-seg{height:100%;transition:width 0.5s ease;border-radius:3px}
-.split-buckets{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.split-buckets{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
 .split-bucket{
   border-radius:var(--r2);padding:14px 16px;
   border:1.5px solid var(--border);
@@ -536,21 +542,33 @@ body{
 .split-bucket.needs::before{background:var(--green)}
 .split-bucket.wants::before{background:var(--orange)}
 .split-bucket.saveinv::before{background:var(--accent)}
+.split-bucket.savonly::before{background:var(--teal)}
+.split-bucket.inv::before{background:var(--purple)}
 .split-bucket-label{font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px}
 .split-bucket.needs .split-bucket-label{color:var(--green)}
 .split-bucket.wants .split-bucket-label{color:var(--orange)}
 .split-bucket.saveinv .split-bucket-label{color:var(--accent)}
+.split-bucket.savonly .split-bucket-label{color:var(--teal)}
+.split-bucket.inv .split-bucket-label{color:var(--purple)}
 .split-bucket-name{font-size:0.78rem;color:var(--text2);margin-bottom:8px;font-weight:500}
 .split-bucket-amount{font-size:1.2rem;font-weight:700;letter-spacing:-0.02em}
 .split-bucket.needs .split-bucket-amount{color:var(--green)}
 .split-bucket.wants .split-bucket-amount{color:var(--orange)}
 .split-bucket.saveinv .split-bucket-amount{color:var(--accent)}
+.split-bucket.savonly .split-bucket-amount{color:var(--teal)}
+.split-bucket.inv .split-bucket-amount{color:var(--purple)}
 .split-bucket-used{font-size:0.72rem;color:var(--text3);margin-top:3px}
 .split-bucket-bar-bg{height:4px;background:var(--surface3);border-radius:3px;margin-top:8px;overflow:hidden}
 .split-bucket-bar{height:100%;border-radius:3px;transition:width 0.5s ease}
 .split-bucket.needs .split-bucket-bar{background:var(--green)}
 .split-bucket.wants .split-bucket-bar{background:var(--orange)}
 .split-bucket.saveinv .split-bucket-bar{background:var(--accent)}
+.split-bucket.savonly .split-bucket-bar{background:var(--teal)}
+.split-bucket.inv .split-bucket-bar{background:var(--purple)}
+.inv-alloc{margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
+.inv-alloc-row{display:flex;justify-content:space-between;align-items:center;font-size:0.72rem}
+.inv-alloc-label{font-weight:600;color:var(--text2)}
+.inv-alloc-amt{font-weight:700;color:var(--purple)}
 
 /* ── MONEY TIPS CAROUSEL ── */
 .tips-scroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px}
@@ -661,9 +679,14 @@ body{
       <div class="stat-sub">This month</div>
     </div>
     <div class="stat-card savings">
-      <div class="stat-label"><span class="stat-icon" style="background:var(--accent-light);color:var(--accent)">◎</span>Saved</div>
-      <div class="stat-num" id="dash-saved">$0.00</div>
-      <div class="stat-sub" id="dash-rate">0% savings rate</div>
+      <div class="stat-label"><span class="stat-icon" style="background:var(--teal-light);color:var(--teal)">🏦</span>In Savings</div>
+      <div class="stat-num" id="dash-savings-bal">$0.00</div>
+      <div class="stat-sub" id="dash-savings-month">$0.00 this month</div>
+    </div>
+    <div class="stat-card investment">
+      <div class="stat-label"><span class="stat-icon" style="background:var(--purple-light);color:var(--purple)">📈</span>In Investments</div>
+      <div class="stat-num" id="dash-invest-bal">$0.00</div>
+      <div class="stat-sub" id="dash-invest-month">$0.00 this month</div>
     </div>
   </div>
 
@@ -687,7 +710,7 @@ body{
   <div class="split-card" id="split-card" style="display:none">
     <div class="split-header">
       <div>
-        <div class="split-title">🎯 50 / 30 / 20 Income Split</div>
+        <div class="split-title">🎯 50 / 30 / 15 / 5 Income Split</div>
         <div class="split-income" id="split-income-label">Based on $0.00 income this month</div>
       </div>
       <a href="#" style="font-size:0.75rem;color:var(--accent);font-weight:600;text-decoration:none" onclick="showPage('tips');return false">What's this?</a>
@@ -695,7 +718,8 @@ body{
     <div class="split-bar-track">
       <div class="split-seg" style="background:var(--green);width:50%"></div>
       <div class="split-seg" style="background:var(--orange);width:30%"></div>
-      <div class="split-seg" style="background:var(--accent);width:20%"></div>
+      <div class="split-seg" style="background:var(--teal);width:15%"></div>
+      <div class="split-seg" style="background:var(--purple);width:5%"></div>
     </div>
     <div class="split-buckets">
       <div class="split-bucket needs">
@@ -712,12 +736,29 @@ body{
         <div class="split-bucket-used" id="split-wants-used"></div>
         <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-wants-bar" style="width:0%"></div></div>
       </div>
-      <div class="split-bucket saveinv">
-        <div class="split-bucket-label">20% — Save &amp; Invest</div>
-        <div class="split-bucket-name">Savings, investments, super</div>
-        <div class="split-bucket-amount" id="split-saveinv-amt">$0</div>
-        <div class="split-bucket-used" id="split-saveinv-used"></div>
-        <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-saveinv-bar" style="width:0%"></div></div>
+      <div class="split-bucket savonly">
+        <div class="split-bucket-label">15% — Savings</div>
+        <div class="split-bucket-name">High-yield savings account</div>
+        <div class="split-bucket-amount" id="split-sav-amt">$0</div>
+        <div class="split-bucket-used" id="split-sav-used"></div>
+        <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-sav-bar" style="width:0%"></div></div>
+      </div>
+      <div class="split-bucket inv">
+        <div class="split-bucket-label">5% — Investments</div>
+        <div class="split-bucket-name">VGS + VAS portfolio</div>
+        <div class="split-bucket-amount" id="split-inv-amt">$0</div>
+        <div class="split-bucket-used" id="split-inv-used"></div>
+        <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-inv-bar" style="width:0%"></div></div>
+        <div class="inv-alloc">
+          <div class="inv-alloc-row">
+            <span class="inv-alloc-label">VGS (60%)</span>
+            <span class="inv-alloc-amt" id="split-vgs-amt">$0</span>
+          </div>
+          <div class="inv-alloc-row">
+            <span class="inv-alloc-label">VAS (40%)</span>
+            <span class="inv-alloc-amt" id="split-vas-amt">$0</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1814,12 +1855,17 @@ function renderDashboard(){
   const saved=sumByType(txs,'savings');
   const invested=sumByType(txs,'investment');
   const net=income-expenses-saved-invested;
-  const rate=income>0?Math.round((saved+invested)/income*100):0;
+
+  // All-time cumulative balances
+  const totalSavings=sumByType(TXS,'savings');
+  const totalInvested=sumByType(TXS,'investment');
 
   document.getElementById('dash-income').textContent=fmt(income);
   document.getElementById('dash-expenses').textContent=fmt(expenses);
-  document.getElementById('dash-saved').textContent=fmt(saved+invested);
-  document.getElementById('dash-rate').textContent=rate+'% savings rate';
+  document.getElementById('dash-savings-bal').textContent=fmt(totalSavings);
+  document.getElementById('dash-savings-month').textContent=fmt(saved)+' this month';
+  document.getElementById('dash-invest-bal').textContent=fmt(totalInvested);
+  document.getElementById('dash-invest-month').textContent=fmt(invested)+' this month';
   document.getElementById('sidebar-net').textContent=fmt(net);
 
   const h=new Date().getHours();
@@ -1931,18 +1977,22 @@ function render503020(txs, income){
 
   const needs50 = income * 0.50;
   const wants30 = income * 0.30;
-  const saveinv20 = income * 0.20;
+  // 20% split: 75% → savings, 25% → investments
+  const savTarget = income * 0.20 * 0.75;  // 15% of income
+  const invTarget = income * 0.20 * 0.25;  // 5% of income
+  const vgsTarget = invTarget * 0.60;
+  const vasTarget = invTarget * 0.40;
 
-  // Use explicit bucket field; savings/investment type always count as savings bucket
-  let spentNeeds = 0, spentWants = 0, spentSaveInv = 0;
+  let spentNeeds = 0, spentWants = 0, spentSav = 0, spentInv = 0;
   txs.forEach(t => {
-    if(t.type === 'savings' || t.type === 'investment') {
-      spentSaveInv += t.amount;
+    if(t.type === 'savings') {
+      spentSav += t.amount;
+    } else if(t.type === 'investment') {
+      spentInv += t.amount;
     } else if(t.type === 'expense' || t.type === 'transfer') {
       if(t.bucket === 'needs') spentNeeds += t.amount;
       else if(t.bucket === 'wants') spentWants += t.amount;
-      else if(t.bucket === 'savings') spentSaveInv += t.amount;
-      // bucket === 'none' → unassigned, not counted in any bucket
+      else if(t.bucket === 'savings') spentSav += t.amount;
     }
   });
 
@@ -1953,35 +2003,41 @@ function render503020(txs, income){
   document.getElementById('split-income-label').textContent =
     'Based on ' + fmt(income) + ' income this month' +
     (unassigned > 0 ? ' · ' + unassigned + ' expense' + (unassigned>1?'s':'')+' unassigned' : '');
+
   document.getElementById('split-needs-amt').textContent = fmt(needs50);
   document.getElementById('split-wants-amt').textContent = fmt(wants30);
-  document.getElementById('split-saveinv-amt').textContent = fmt(saveinv20);
+  document.getElementById('split-sav-amt').textContent = fmt(savTarget);
+  document.getElementById('split-inv-amt').textContent = fmt(invTarget);
+  document.getElementById('split-vgs-amt').textContent = fmt(vgsTarget);
+  document.getElementById('split-vas-amt').textContent = fmt(vasTarget);
 
   function usedLabel(spent, budget) {
     const rem = budget - spent;
-    if(spent === 0) return 'Nothing spent yet';
-    if(rem >= 0) return fmt(spent) + ' spent · ' + fmt(rem) + ' left';
-    return fmt(spent) + ' spent · ' + fmt(Math.abs(rem)) + ' over';
+    if(spent === 0) return 'Nothing sent yet';
+    if(rem >= 0) return fmt(spent) + ' sent · ' + fmt(rem) + ' left';
+    return fmt(spent) + ' sent · ' + fmt(Math.abs(rem)) + ' over';
   }
   document.getElementById('split-needs-used').textContent = usedLabel(spentNeeds, needs50);
   document.getElementById('split-wants-used').textContent = usedLabel(spentWants, wants30);
-  document.getElementById('split-saveinv-used').textContent = usedLabel(spentSaveInv, saveinv20);
+  document.getElementById('split-sav-used').textContent = usedLabel(spentSav, savTarget);
+  document.getElementById('split-inv-used').textContent = usedLabel(spentInv, invTarget);
 
   function barPct(spent, budget){ return budget > 0 ? Math.min(100, Math.round(spent / budget * 100)) : 0; }
   document.getElementById('split-needs-bar').style.width = barPct(spentNeeds, needs50) + '%';
   document.getElementById('split-wants-bar').style.width = barPct(spentWants, wants30) + '%';
-  document.getElementById('split-saveinv-bar').style.width = barPct(spentSaveInv, saveinv20) + '%';
+  document.getElementById('split-sav-bar').style.width = barPct(spentSav, savTarget) + '%';
+  document.getElementById('split-inv-bar').style.width = barPct(spentInv, invTarget) + '%';
 
   // Colour bars red if over budget
-  ['needs','wants','saveinv'].forEach(key => {
+  const barMap = [
+    {key:'needs', spent:spentNeeds, budget:needs50,    color:'var(--green)'},
+    {key:'wants', spent:spentWants, budget:wants30,    color:'var(--orange)'},
+    {key:'sav',   spent:spentSav,   budget:savTarget,  color:'var(--teal)'},
+    {key:'inv',   spent:spentInv,   budget:invTarget,  color:'var(--purple)'},
+  ];
+  barMap.forEach(({key, spent, budget, color}) => {
     const bar = document.getElementById('split-'+key+'-bar');
-    const spent = key==='needs'?spentNeeds:key==='wants'?spentWants:spentSaveInv;
-    const budget = key==='needs'?needs50:key==='wants'?wants30:saveinv20;
-    if(spent > budget){
-      bar.style.background = 'var(--red)';
-    } else {
-      bar.style.background = key==='needs'?'var(--green)':key==='wants'?'var(--orange)':'var(--accent)';
-    }
+    bar.style.background = spent > budget ? 'var(--red)' : color;
   });
 }
 
