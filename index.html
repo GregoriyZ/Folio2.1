@@ -718,8 +718,8 @@ body{
     <div class="split-bar-track">
       <div class="split-seg" style="background:var(--green);width:50%"></div>
       <div class="split-seg" style="background:var(--orange);width:30%"></div>
-      <div class="split-seg" style="background:var(--teal);width:15%"></div>
-      <div class="split-seg" style="background:var(--purple);width:5%"></div>
+      <div class="split-seg" style="background:var(--teal);width:5%"></div>
+      <div class="split-seg" style="background:var(--purple);width:15%"></div>
     </div>
     <div class="split-buckets">
       <div class="split-bucket needs">
@@ -737,25 +737,25 @@ body{
         <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-wants-bar" style="width:0%"></div></div>
       </div>
       <div class="split-bucket savonly">
-        <div class="split-bucket-label">15% — Savings</div>
+        <div class="split-bucket-label">5% — Savings</div>
         <div class="split-bucket-name">High-yield savings account</div>
         <div class="split-bucket-amount" id="split-sav-amt">$0</div>
         <div class="split-bucket-used" id="split-sav-used"></div>
         <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-sav-bar" style="width:0%"></div></div>
       </div>
       <div class="split-bucket inv">
-        <div class="split-bucket-label">5% — Investments</div>
+        <div class="split-bucket-label">15% — Investments</div>
         <div class="split-bucket-name">VGS + VAS portfolio</div>
         <div class="split-bucket-amount" id="split-inv-amt">$0</div>
         <div class="split-bucket-used" id="split-inv-used"></div>
         <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-inv-bar" style="width:0%"></div></div>
         <div class="inv-alloc">
           <div class="inv-alloc-row">
-            <span class="inv-alloc-label">VGS (60%)</span>
+            <span class="inv-alloc-label">VGS (67%)</span>
             <span class="inv-alloc-amt" id="split-vgs-amt">$0</span>
           </div>
           <div class="inv-alloc-row">
-            <span class="inv-alloc-label">VAS (40%)</span>
+            <span class="inv-alloc-label">VAS (33%)</span>
             <span class="inv-alloc-amt" id="split-vas-amt">$0</span>
           </div>
         </div>
@@ -1978,10 +1978,10 @@ function render503020(txs, income){
   const needs50 = income * 0.50;
   const wants30 = income * 0.30;
   // 20% split: 75% → savings, 25% → investments
-  const savTarget = income * 0.20 * 0.75;  // 15% of income
-  const invTarget = income * 0.20 * 0.25;  // 5% of income
-  const vgsTarget = invTarget * 0.60;
-  const vasTarget = invTarget * 0.40;
+  const savTarget = income * 0.20 * 0.25;  // 5% of income
+  const invTarget = income * 0.20 * 0.75;  // 15% of income
+  const vgsTarget = invTarget * (2/3);
+  const vasTarget = invTarget * (1/3);
 
   let spentNeeds = 0, spentWants = 0, spentSav = 0, spentInv = 0;
   txs.forEach(t => {
