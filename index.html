@@ -1812,6 +1812,7 @@ function sumByType(txs,type){ return txs.filter(t=>t.type===type).reduce((a,t)=>
 ════════════════════════════════════════ */
 function fmt(n,showSign=false){
   const s=Math.abs(n).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(n<0)return '-$'+s;
   if(showSign&&n>0)return '+$'+s;
   return '$'+s;
 }
@@ -1856,16 +1857,12 @@ function renderDashboard(){
   const invested=sumByType(txs,'investment');
   const net=income-expenses-saved-invested;
 
-  // All-time cumulative balances
-  const totalSavings=sumByType(TXS,'savings');
-  const totalInvested=sumByType(TXS,'investment');
-
   document.getElementById('dash-income').textContent=fmt(income);
   document.getElementById('dash-expenses').textContent=fmt(expenses);
-  document.getElementById('dash-savings-bal').textContent=fmt(totalSavings);
-  document.getElementById('dash-savings-month').textContent=fmt(saved)+' this month';
-  document.getElementById('dash-invest-bal').textContent=fmt(totalInvested);
-  document.getElementById('dash-invest-month').textContent=fmt(invested)+' this month';
+  document.getElementById('dash-savings-bal').textContent=fmt(saved);
+  document.getElementById('dash-savings-month').textContent='This month';
+  document.getElementById('dash-invest-bal').textContent=fmt(invested);
+  document.getElementById('dash-invest-month').textContent='This month';
   document.getElementById('sidebar-net').textContent=fmt(net);
 
   const h=new Date().getHours();
