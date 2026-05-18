@@ -710,41 +710,64 @@ body{
   <div class="split-card" id="split-card" style="display:none">
     <div class="split-header">
       <div>
-        <div class="split-title">🎯 50 / 30 / 15 / 5 Income Split</div>
+        <div class="split-title" id="split-title">🎯 Income Split</div>
         <div class="split-income" id="split-income-label">Based on $0.00 income this month</div>
       </div>
-      <a href="#" style="font-size:0.75rem;color:var(--accent);font-weight:600;text-decoration:none" onclick="showPage('tips');return false">What's this?</a>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-secondary btn-sm" id="split-edit-btn" onclick="toggleSplitEditor()" style="font-size:0.72rem;padding:5px 10px">⚙ Edit</button>
+        <a href="#" style="font-size:0.75rem;color:var(--accent);font-weight:600;text-decoration:none" onclick="showPage('tips');return false">What's this?</a>
+      </div>
     </div>
+
+    <!-- Editor (hidden by default) -->
+    <div id="split-editor" style="display:none;background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid var(--border)">
+      <div style="font-size:0.8rem;font-weight:600;color:var(--text2);margin-bottom:10px">Set your own income split — percentages must add up to 100%.</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <label style="font-size:0.72rem;color:var(--text3);font-weight:600">Needs<input type="number" id="pct-needs" min="0" max="100" step="1" oninput="onSplitInput()" style="width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.9rem"></label>
+        <label style="font-size:0.72rem;color:var(--text3);font-weight:600">Wants<input type="number" id="pct-wants" min="0" max="100" step="1" oninput="onSplitInput()" style="width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.9rem"></label>
+        <label style="font-size:0.72rem;color:var(--text3);font-weight:600">Savings<input type="number" id="pct-sav" min="0" max="100" step="1" oninput="onSplitInput()" style="width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.9rem"></label>
+        <label style="font-size:0.72rem;color:var(--text3);font-weight:600">Investments<input type="number" id="pct-inv" min="0" max="100" step="1" oninput="onSplitInput()" style="width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.9rem"></label>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap">
+        <div id="pct-sum-label" style="font-size:0.78rem;font-weight:600">Total: 100%</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="autoBalanceSplit()" style="font-size:0.72rem;padding:5px 10px" title="Adjust other buckets proportionally so total = 100%">Auto-balance</button>
+          <button class="btn btn-secondary btn-sm" onclick="resetSplitPcts()" style="font-size:0.72rem;padding:5px 10px">Reset 50/30/5/15</button>
+          <button class="btn btn-primary btn-sm" onclick="saveSplitPcts()" style="font-size:0.72rem;padding:5px 12px">Save</button>
+        </div>
+      </div>
+    </div>
+
     <div class="split-bar-track">
-      <div class="split-seg" style="background:var(--green);width:50%"></div>
-      <div class="split-seg" style="background:var(--orange);width:30%"></div>
-      <div class="split-seg" style="background:var(--teal);width:5%"></div>
-      <div class="split-seg" style="background:var(--purple);width:15%"></div>
+      <div class="split-seg" id="split-seg-needs" style="background:var(--green);width:50%"></div>
+      <div class="split-seg" id="split-seg-wants" style="background:var(--orange);width:30%"></div>
+      <div class="split-seg" id="split-seg-sav"   style="background:var(--teal);width:5%"></div>
+      <div class="split-seg" id="split-seg-inv"   style="background:var(--purple);width:15%"></div>
     </div>
     <div class="split-buckets">
       <div class="split-bucket needs">
-        <div class="split-bucket-label">50% — Needs</div>
+        <div class="split-bucket-label" id="split-needs-pctlabel">50% — Needs</div>
         <div class="split-bucket-name">Rent, food, bills, essentials</div>
         <div class="split-bucket-amount" id="split-needs-amt">$0</div>
         <div class="split-bucket-used" id="split-needs-used"></div>
         <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-needs-bar" style="width:0%"></div></div>
       </div>
       <div class="split-bucket wants">
-        <div class="split-bucket-label">30% — Wants</div>
+        <div class="split-bucket-label" id="split-wants-pctlabel">30% — Wants</div>
         <div class="split-bucket-name">Dining, fun, subscriptions</div>
         <div class="split-bucket-amount" id="split-wants-amt">$0</div>
         <div class="split-bucket-used" id="split-wants-used"></div>
         <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-wants-bar" style="width:0%"></div></div>
       </div>
       <div class="split-bucket savonly">
-        <div class="split-bucket-label">5% — Savings</div>
+        <div class="split-bucket-label" id="split-sav-pctlabel">5% — Savings</div>
         <div class="split-bucket-name">High-yield savings account</div>
         <div class="split-bucket-amount" id="split-sav-amt">$0</div>
         <div class="split-bucket-used" id="split-sav-used"></div>
         <div class="split-bucket-bar-bg"><div class="split-bucket-bar" id="split-sav-bar" style="width:0%"></div></div>
       </div>
       <div class="split-bucket inv">
-        <div class="split-bucket-label">15% — Investments</div>
+        <div class="split-bucket-label" id="split-inv-pctlabel">15% — Investments</div>
         <div class="split-bucket-name">VGS + VAS portfolio</div>
         <div class="split-bucket-amount" id="split-inv-amt">$0</div>
         <div class="split-bucket-used" id="split-inv-used"></div>
@@ -1962,9 +1985,120 @@ function renderDashboard(){
 /* ════════════════════════════════════════
    50 / 30 / 20 SPLIT
 ════════════════════════════════════════ */
+const DEFAULT_SPLIT_PCTS = {needs:50, wants:30, sav:5, inv:15};
+let SPLIT_PCTS = loadSplitPcts();
+
+function loadSplitPcts(){
+  try{
+    const raw = localStorage.getItem('folio_split_pcts');
+    if(!raw) return {...DEFAULT_SPLIT_PCTS};
+    const p = JSON.parse(raw);
+    const out = {...DEFAULT_SPLIT_PCTS, ...p};
+    const sum = out.needs + out.wants + out.sav + out.inv;
+    if(Math.abs(sum - 100) > 0.01) return {...DEFAULT_SPLIT_PCTS};
+    return out;
+  }catch(e){ return {...DEFAULT_SPLIT_PCTS}; }
+}
+
+function applySplitLabels(){
+  const p = SPLIT_PCTS;
+  document.getElementById('split-title').textContent =
+    `🎯 ${p.needs} / ${p.wants} / ${p.inv} / ${p.sav} Income Split`;
+  document.getElementById('split-needs-pctlabel').textContent = p.needs + '% — Needs';
+  document.getElementById('split-wants-pctlabel').textContent = p.wants + '% — Wants';
+  document.getElementById('split-sav-pctlabel').textContent   = p.sav   + '% — Savings';
+  document.getElementById('split-inv-pctlabel').textContent   = p.inv   + '% — Investments';
+  document.getElementById('split-seg-needs').style.width = p.needs + '%';
+  document.getElementById('split-seg-wants').style.width = p.wants + '%';
+  document.getElementById('split-seg-sav').style.width   = p.sav   + '%';
+  document.getElementById('split-seg-inv').style.width   = p.inv   + '%';
+}
+
+function toggleSplitEditor(){
+  const ed = document.getElementById('split-editor');
+  const showing = ed.style.display !== 'none';
+  if(showing){ ed.style.display = 'none'; return; }
+  document.getElementById('pct-needs').value = SPLIT_PCTS.needs;
+  document.getElementById('pct-wants').value = SPLIT_PCTS.wants;
+  document.getElementById('pct-sav').value   = SPLIT_PCTS.sav;
+  document.getElementById('pct-inv').value   = SPLIT_PCTS.inv;
+  ed.style.display = 'block';
+  onSplitInput();
+}
+
+function readSplitInputs(){
+  return {
+    needs: Math.max(0, Math.min(100, parseFloat(document.getElementById('pct-needs').value)||0)),
+    wants: Math.max(0, Math.min(100, parseFloat(document.getElementById('pct-wants').value)||0)),
+    sav:   Math.max(0, Math.min(100, parseFloat(document.getElementById('pct-sav').value)||0)),
+    inv:   Math.max(0, Math.min(100, parseFloat(document.getElementById('pct-inv').value)||0)),
+  };
+}
+
+function onSplitInput(){
+  const v = readSplitInputs();
+  const sum = v.needs + v.wants + v.sav + v.inv;
+  const lbl = document.getElementById('pct-sum-label');
+  const ok = Math.abs(sum - 100) < 0.01;
+  lbl.textContent = `Total: ${Math.round(sum*100)/100}% ${ok ? '✓' : '(must equal 100%)'}`;
+  lbl.style.color = ok ? 'var(--green)' : 'var(--red)';
+}
+
+function autoBalanceSplit(){
+  // Keep Needs as anchor; distribute remainder among the other three proportionally to current values.
+  const v = readSplitInputs();
+  const anchor = v.needs;
+  const remaining = Math.max(0, 100 - anchor);
+  const others = {wants:v.wants, sav:v.sav, inv:v.inv};
+  const sumOthers = others.wants + others.sav + others.inv;
+  let out;
+  if(sumOthers <= 0){
+    out = {wants: remaining/3, sav: remaining/3, inv: remaining/3};
+  } else {
+    out = {
+      wants: remaining * others.wants / sumOthers,
+      sav:   remaining * others.sav   / sumOthers,
+      inv:   remaining * others.inv   / sumOthers,
+    };
+  }
+  // Round to 1 decimal then fix drift on 'inv'.
+  const r = x => Math.round(x*10)/10;
+  out.wants = r(out.wants); out.sav = r(out.sav); out.inv = r(out.inv);
+  out.inv = Math.round((100 - anchor - out.wants - out.sav)*10)/10;
+  document.getElementById('pct-wants').value = out.wants;
+  document.getElementById('pct-sav').value   = out.sav;
+  document.getElementById('pct-inv').value   = out.inv;
+  onSplitInput();
+}
+
+function resetSplitPcts(){
+  document.getElementById('pct-needs').value = DEFAULT_SPLIT_PCTS.needs;
+  document.getElementById('pct-wants').value = DEFAULT_SPLIT_PCTS.wants;
+  document.getElementById('pct-sav').value   = DEFAULT_SPLIT_PCTS.sav;
+  document.getElementById('pct-inv').value   = DEFAULT_SPLIT_PCTS.inv;
+  onSplitInput();
+}
+
+function saveSplitPcts(){
+  const v = readSplitInputs();
+  const sum = v.needs + v.wants + v.sav + v.inv;
+  if(Math.abs(sum - 100) > 0.01){
+    alert(`Percentages must add up to 100% (currently ${Math.round(sum*100)/100}%). Use Auto-balance to fix.`);
+    return;
+  }
+  SPLIT_PCTS = v;
+  localStorage.setItem('folio_split_pcts', JSON.stringify(v));
+  document.getElementById('split-editor').style.display = 'none';
+  // Re-render dashboard so amounts/targets reflect new percentages
+  if(typeof renderDashboard === 'function') renderDashboard();
+  else applySplitLabels();
+}
+
 function render503020(txs, income){
   const card = document.getElementById('split-card');
   if(!card) return;
+
+  applySplitLabels();
 
   if(income <= 0){
     card.style.display = 'none';
@@ -1972,11 +2106,11 @@ function render503020(txs, income){
   }
   card.style.display = 'block';
 
-  const needs50 = income * 0.50;
-  const wants30 = income * 0.30;
-  // 20% split: 75% → savings, 25% → investments
-  const savTarget = income * 0.20 * 0.25;  // 5% of income
-  const invTarget = income * 0.20 * 0.75;  // 15% of income
+  const p = SPLIT_PCTS;
+  const needs50  = income * p.needs / 100;
+  const wants30  = income * p.wants / 100;
+  const savTarget = income * p.sav / 100;
+  const invTarget = income * p.inv / 100;
   const vgsTarget = invTarget * (2/3);
   const vasTarget = invTarget * (1/3);
 
