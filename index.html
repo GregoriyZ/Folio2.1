@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#007aff">
 <title>Folio — Personal Finance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
@@ -503,10 +504,106 @@ body{
   .split-buckets{grid-template-columns:1fr 1fr}
 }
 @media(max-width:680px){
-  .sidebar{display:none}
-  .main{margin-left:0}
-  .page{padding:20px 16px 80px}
+  /* Drawer-mode sidebar */
+  .sidebar{
+    width:280px;
+    transform:translateX(-100%);
+    transition:transform 0.28s cubic-bezier(0.32,0.72,0,1);
+    z-index:300;
+    box-shadow:0 18px 50px rgba(0,0,0,0.25);
+  }
+  .sidebar.open{transform:none}
+  .sidebar-backdrop{
+    position:fixed;inset:0;background:rgba(0,0,0,0.4);
+    backdrop-filter:blur(2px);z-index:250;
+    opacity:0;pointer-events:none;transition:opacity 0.2s;
+  }
+  .sidebar-backdrop.open{opacity:1;pointer-events:auto}
+  .main{margin-left:0;height:auto;min-height:100vh;overflow:visible}
+  html,body{overflow:auto;height:auto}
+  body{display:block;min-height:100vh}
+
+  /* Mobile top bar */
+  .topbar{display:flex !important}
+
+  /* Page layout */
+  .page{padding:14px 14px calc(110px + env(safe-area-inset-bottom)) !important}
+  .page-header{flex-direction:column;align-items:stretch;gap:12px;margin-bottom:18px}
+  .page-title{font-size:1.55rem}
+  .page-header > div:last-child{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+  #page-dashboard .page-header .btn-primary,
+  #page-transactions .page-header .btn-primary{display:none} /* covered by FAB */
+  .month-nav{flex:1;justify-content:space-between}
+  .month-label{flex:1;text-align:center}
+
+  /* Stat cards: 2x2 grid, tighter padding */
+  .dash-top{grid-template-columns:1fr 1fr;gap:10px}
+  .stat-card{padding:14px}
+  .stat-num{font-size:1.35rem}
+  .dash-mid,.dash-bottom,.analytics-grid{grid-template-columns:1fr;gap:12px}
+
+  /* Income split: single column on phones */
+  .split-buckets{grid-template-columns:1fr;gap:10px}
+  .split-card{padding:16px}
+  .split-bucket{padding:12px 14px}
+
+  /* Modal: bottom-sheet style, full width */
+  .modal-overlay{align-items:flex-end}
+  .modal{
+    margin:0;border-radius:18px 18px 0 0;
+    max-height:92vh;width:100%;max-width:none;
+    padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+  }
+  /* Avoid iOS zoom on focus */
+  .form-input,.form-select,.form-textarea{font-size:16px}
+
+  /* Floating Action Button */
+  .fab{display:flex !important}
+
+  /* Hide sidebar footer on mobile when drawer closed body */
 }
+@media(max-width:380px){
+  .dash-top{grid-template-columns:1fr}
+  .topbar-net{display:none}
+}
+
+/* ── MOBILE TOPBAR & FAB (hidden on desktop) ── */
+.topbar{
+  display:none;
+  position:sticky;top:0;left:0;right:0;
+  height:54px;z-index:100;
+  background:rgba(255,255,255,0.85);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--border);
+  padding:0 14px;
+  align-items:center;gap:10px;
+}
+.topbar-btn{
+  width:38px;height:38px;border-radius:10px;border:none;background:var(--surface3);
+  color:var(--text);font-size:1.15rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.topbar-btn:active{background:var(--border2)}
+.topbar-logo{font-family:var(--serif);font-size:1.05rem;color:var(--text);flex-shrink:0}
+.topbar-net{
+  margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;
+}
+.topbar-net-label{font-size:0.62rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);font-weight:600}
+.topbar-net-val{font-size:0.95rem;font-weight:700;color:var(--text)}
+.fab{
+  display:none;
+  position:fixed;
+  right:18px;
+  bottom:calc(18px + env(safe-area-inset-bottom));
+  width:60px;height:60px;border-radius:50%;
+  background:var(--accent);color:#fff;
+  border:none;font-size:1.85rem;font-weight:300;line-height:1;
+  box-shadow:0 8px 24px rgba(0,122,255,0.45);
+  cursor:pointer;z-index:150;
+  align-items:center;justify-content:center;
+  transition:transform 0.15s;
+}
+.fab:active{transform:scale(0.92)}
 
 /* ── PROGRESS RING ── */
 .ring-wrap{display:flex;align-items:center;justify-content:center;position:relative}
@@ -585,8 +682,21 @@ body{
 </head>
 <body>
 
+<!-- MOBILE TOP BAR -->
+<header class="topbar" id="topbar">
+  <button class="topbar-btn" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+  <span class="topbar-logo">Folio</span>
+  <div class="topbar-net">
+    <span class="topbar-net-label">Net Position</span>
+    <span class="topbar-net-val" id="topbar-net">$0.00</span>
+  </div>
+</header>
+
+<!-- SIDEBAR BACKDROP (mobile) -->
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
 <!-- SIDEBAR -->
-<nav class="sidebar">
+<nav class="sidebar" id="sidebar">
   <div class="logo">
     <div class="logo-mark">💳</div>
     <span class="logo-text">Folio</span>
@@ -962,6 +1072,9 @@ body{
 </div>
 
 </main>
+
+<!-- FLOATING ADD BUTTON (mobile) -->
+<button class="fab" id="fab-add" onclick="openAddModal()" aria-label="Add transaction">+</button>
 
 <div id="toast" class="toast"></div>
 
@@ -1802,6 +1915,7 @@ function showPage(id){
   document.querySelectorAll('.nav-item').forEach(n=>{
     if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes("'"+id+"'"))n.classList.add('active');
   });
+  closeSidebar();
   if(id==='dashboard')renderDashboard();
   if(id==='transactions')renderTransactions();
   if(id==='analytics')renderAnalytics();
@@ -1809,6 +1923,20 @@ function showPage(id){
   if(id==='categories')renderCategoriesPage();
   if(id==='tips')renderTipsPage();
   if(id==='sqlconsole'){ document.getElementById('sql-output').innerHTML='<div style="color:var(--text3);font-size:0.85rem;padding:10px 0">Run a query to see results here.</div>'; }
+  window.scrollTo({top:0,behavior:'instant'});
+}
+
+function toggleSidebar(){
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('sidebar-backdrop');
+  const open = sb.classList.toggle('open');
+  bd.classList.toggle('open', open);
+}
+function closeSidebar(){
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('sidebar-backdrop');
+  if(sb) sb.classList.remove('open');
+  if(bd) bd.classList.remove('open');
 }
 
 /* ════════════════════════════════════════
@@ -1887,6 +2015,7 @@ function renderDashboard(){
   document.getElementById('dash-invest-bal').textContent=fmt(invested);
   document.getElementById('dash-invest-month').textContent='This month';
   document.getElementById('sidebar-net').textContent=fmt(net);
+  const tbn=document.getElementById('topbar-net'); if(tbn) tbn.textContent=fmt(net);
 
   const h=new Date().getHours();
   const greet=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
