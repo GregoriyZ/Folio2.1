@@ -751,7 +751,12 @@ body{
       </label>
     </div>
     <div style="margin-top:6px">
-      <button class="btn btn-secondary btn-sm" style="width:100%;font-size:0.72rem;padding:6px 8px;background:var(--purple-light);color:var(--purple);border:1px solid rgba(175,82,222,0.2)" onclick="bankSync()" title="Import transactions from ubank / NAB / ANZ via Open Banking">🏦 Sync Banks</button>
+      <label class="btn btn-secondary btn-sm" style="width:100%;font-size:0.72rem;padding:6px 8px;cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center;gap:5px;background:var(--orange-light);color:var(--orange);border:1px solid rgba(255,149,0,0.2)" title="Import a CSV downloaded from ubank, NAB or ANZ — free, no subscription">
+        🏛 Import Bank CSV<input type="file" accept=".csv,text/csv" onchange="importBankCSV(event)" style="display:none">
+      </label>
+    </div>
+    <div style="margin-top:6px">
+      <button class="btn btn-secondary btn-sm" style="width:100%;font-size:0.72rem;padding:6px 8px;background:var(--purple-light);color:var(--purple);border:1px solid rgba(175,82,222,0.2)" onclick="bankSync()" title="Auto-sync via Open Banking (needs a Redbark key)">🏦 Sync Banks</button>
     </div>
     <div style="display:flex;gap:6px;margin-top:6px">
       <button class="btn btn-secondary btn-sm" style="flex:1;font-size:0.72rem;padding:6px 8px;background:var(--green-light);color:var(--green);border:1px solid rgba(52,199,89,0.2)" onclick="cloudSave(true)" title="Push local data to cloud">☁ Push</button>
@@ -1738,6 +1743,186 @@ function exportCSV(){
   a.href=url; a.download='folio-transactions-'+new Date().toISOString().split('T')[0]+'.csv'; a.click();
   URL.revokeObjectURL(url);
   showToast('CSV exported — '+TXS.length+' transactions');
+}
+
+/* ════════════════════════════════════════
+   BANK CSV IMPORT  (free — no subscription)
+   Auto-detects the CSV export formats of ubank, NAB and ANZ (and most other
+   AU banks). Download the CSV from internet banking, drop it in here.
+   Rows get a deterministic id derived from date+amount+description, so
+   re-importing an overlapping file updates instead of duplicating.
+════════════════════════════════════════ */
+
+/* Tolerant CSV parser: handles quoted fields, embedded commas/newlines. */
+function parseCSV(text){
+  const rows=[]; let row=[], field='', inQ=false;
+  text = text.replace(/^\uFEFF/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false; }
+      else field+=c;
+    } else if(c==='"') inQ=true;
+    else if(c===','){ row.push(field); field=''; }
+    else if(c==='\n'){ row.push(field); field=''; if(row.some(v=>v.trim()!=='')) rows.push(row); row=[]; }
+    else field+=c;
+  }
+  row.push(field);
+  if(row.some(v=>v.trim()!=='')) rows.push(row);
+  return rows;
+}
+
+/* Australian banks export dates as DD/MM/YYYY (or DD-MM-YY). Some use ISO. */
+function parseAuDate(s){
+  s=(s||'').trim();
+  if(!s) return null;
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);            // ISO
+  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m=s.match(/^(\d{1,2})[\/\-\s]([A-Za-z]{3})[\/\-\s](\d{2,4})$/); // 05 Sep 2026
+  if(m){
+    const mon={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}[m[2].toLowerCase()];
+    if(mon){ let y=m[3].length===2?'20'+m[3]:m[3]; return `${y}-${mon}-${m[1].padStart(2,'0')}`; }
+  }
+  m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);  // DD/MM/YYYY
+  if(m){
+    let [,d,mo,y]=m;
+    if(y.length===2) y='20'+y;
+    return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  const dt=new Date(s);
+  return isNaN(dt) ? null : dt.toISOString().slice(0,10);
+}
+
+function parseAmount(s){
+  if(s===undefined||s===null) return NaN;
+  s=String(s).trim();
+  if(!s) return NaN;
+  let neg = /^\(.*\)$/.test(s);       // (12.34) accounting negative
+  s=s.replace(/[()]/g,'').replace(/[$,\s]/g,'');
+  const n=parseFloat(s);
+  if(isNaN(n)) return NaN;
+  return neg ? -Math.abs(n) : n;
+}
+
+/* Short stable hash so re-imports overwrite the same row. */
+function txHash(str){
+  let h=5381;
+  for(let i=0;i<str.length;i++) h=((h*33) ^ str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+const CSV_FIELD_ALIASES = {
+  date:        ['date','transaction date','date processed','effective date','value date','posting date','completed date','booking date'],
+  description: ['transaction details','description','narrative','transaction description','details','particulars','payee','merchant name','long description','reference','transaction'],
+  amount:      ['amount','transaction amount','amount (aud)','value'],
+  debit:       ['debit','debit amount','withdrawal','withdrawals','money out','paid out','spent'],
+  credit:      ['credit','credit amount','deposit','deposits','money in','paid in','received'],
+  balance:     ['balance','running balance','balance (aud)'],
+};
+
+function detectCsvColumns(header){
+  const norm = header.map(h => String(h||'').trim().toLowerCase().replace(/[_]+/g,' ').replace(/\s+/g,' '));
+  const find = keys => {
+    for(const k of keys){ const i = norm.indexOf(k); if(i>-1) return i; }
+    for(const k of keys){ const i = norm.findIndex(h => h && h.includes(k)); if(i>-1) return i; }
+    return -1;
+  };
+  const cols={};
+  Object.entries(CSV_FIELD_ALIASES).forEach(([f,keys]) => { cols[f]=find(keys); });
+  // Rank every plausible description column so an empty cell (e.g. NAB's blank
+  // Merchant Name) can fall back to the next best column on that row.
+  cols.descCandidates = [];
+  CSV_FIELD_ALIASES.description.forEach(k => {
+    norm.forEach((h,i) => {
+      if(h && (h===k || h.includes(k)) && !cols.descCandidates.includes(i)) cols.descCandidates.push(i);
+    });
+  });
+  return cols;
+}
+
+/* Some banks (classic ANZ/NAB exports) ship headerless CSVs:
+   Date, Amount, Description[, ...] — detect that shape from the first row. */
+function looksHeaderless(firstRow){
+  return parseAuDate(firstRow[0]) !== null && !isNaN(parseAmount(firstRow[1]));
+}
+
+function importBankCSV(event){
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload = e => {
+    try{
+      const rows=parseCSV(e.target.result);
+      if(rows.length<1) throw new Error('file is empty');
+
+      let cols, dataRows;
+      if(looksHeaderless(rows[0])){
+        // Date, Amount, Description (ANZ/NAB classic)
+        cols={date:0,amount:1,description:2,debit:-1,credit:-1,balance:-1,descCandidates:[2,3]};
+        dataRows=rows;
+      } else {
+        cols=detectCsvColumns(rows[0]);
+        dataRows=rows.slice(1);
+        if(cols.date<0) throw new Error('could not find a Date column');
+        if(cols.amount<0 && cols.debit<0 && cols.credit<0) throw new Error('could not find an Amount (or Debit/Credit) column');
+      }
+
+      let added=0, updated=0, skipped=0;
+      const seen={};
+      TXS.forEach(t => { if(String(t.id).startsWith('csv-')) seen[t.id]=t; });
+
+      dataRows.forEach(r => {
+        const date=parseAuDate(r[cols.date]);
+        if(!date){ skipped++; return; }
+
+        let amt=NaN;
+        if(cols.amount>-1) amt=parseAmount(r[cols.amount]);
+        if(isNaN(amt) || amt===0){
+          // Separate debit/credit columns
+          const d = cols.debit>-1 ? parseAmount(r[cols.debit]) : NaN;
+          const c = cols.credit>-1 ? parseAmount(r[cols.credit]) : NaN;
+          if(!isNaN(d) && d!==0) amt=-Math.abs(d);
+          else if(!isNaN(c) && c!==0) amt=Math.abs(c);
+        }
+        if(isNaN(amt) || amt===0){ skipped++; return; }
+
+        let desc='';
+        for(const ci of (cols.descCandidates||[])){
+          const v=(r[ci]||'').trim().replace(/\s+/g,' ');
+          if(v && !parseAuDate(v) && isNaN(parseAmount(v))){ desc=v; break; }
+        }
+        if(!desc) desc='Bank transaction';
+        const id='csv-'+txHash(date+'|'+amt.toFixed(2)+'|'+desc.toLowerCase());
+        const prev=seen[id];
+        const row={
+          id,
+          type: amt>0 ? 'income' : 'expense',
+          amount: Math.abs(amt),
+          description: desc,
+          category: prev ? (prev.category||'') : '',
+          date,
+          note: prev ? (prev.note||'') : (file.name||'CSV import'),
+          bucket: prev ? (prev.bucket||'none') : 'none',
+        };
+        db.run('INSERT OR REPLACE INTO transactions (id,type,amount,description,category,date,note,bucket) VALUES (?,?,?,?,?,?,?,?)',
+          [row.id,row.type,row.amount,row.description,row.category,row.date,row.note,row.bucket]);
+        prev ? updated++ : added++;
+      });
+
+      if(!added && !updated) throw new Error('no usable transaction rows found');
+
+      persistDB();
+      syncFromDB();
+      renderDashboard();
+      let msg='CSV import: '+added+' new, '+updated+' already known';
+      if(skipped) msg+=', '+skipped+' skipped';
+      showToast(msg);
+    }catch(err){
+      console.error('Bank CSV import error',err);
+      showToast('CSV import failed — '+err.message,'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value='';
 }
 
 function importJSON(event){

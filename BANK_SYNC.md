@@ -1,8 +1,50 @@
 # Connecting ubank, NAB and ANZ to Folio
 
-Folio now pulls real bank transactions through **Open Banking (Consumer Data Right)**.
+Two options. Start with the free one.
 
-## Why this approach
+| | Free CSV import | Open Banking auto-sync |
+|---|---|---|
+| Cost | $0 forever | ~A$16/mo (7-day free trial) |
+| Effort | Download a CSV, click import | One-time setup, then one click |
+| Freshness | Whenever you export | On demand |
+| Button | 🏛 Import Bank CSV | 🏦 Sync Banks |
+
+---
+
+# Option 1 — Bank CSV import (free)
+
+There is **no fully free automated feed** for ubank, NAB or ANZ. Under the CDR
+regime only accredited recipients can call bank APIs, and accreditation costs
+far more than a subscription. The only free-forever sources are the CSV exports
+the banks give you directly. (Up Bank offers a genuinely free personal API, but
+only Up customers can use it — it does nothing for your three banks.)
+
+So Folio has a CSV importer that understands the AU bank export formats:
+
+1. **ubank** — app/web → Transactions → Export → CSV
+2. **NAB** — Internet Banking → account → Transaction history → Export → CSV
+3. **ANZ** — Internet Banking → account → Search/Export transactions → CSV
+
+Then click **🏛 Import Bank CSV** in the Folio sidebar and pick the file.
+
+It auto-detects:
+- headerless `Date,Amount,Description` exports (classic ANZ/NAB)
+- headered exports with a single signed `Amount` column
+- exports with separate `Debit`/`Credit` (or Money In/Out) columns
+- dates as `DD/MM/YYYY`, `DD/MM/YY`, `10 Sep 2026`, or ISO
+- amounts with `$`, thousands commas, and `(1,250.00)` accounting negatives
+
+Each row gets a deterministic id hashed from date + amount + description, so
+**re-importing an overlapping file updates rather than duplicates**, and any
+category or bucket you assigned by hand is preserved.
+
+---
+
+# Option 2 — Open Banking auto-sync (paid)
+
+Pulls transactions automatically through **Consumer Data Right**.
+
+## Why a paid provider is required here
 
 - Screen scraping your bank logins breaks their T&Cs and is fragile.
 - Becoming a CDR **Accredited Data Recipient** yourself is a months-long, expensive process. Not viable for a personal app.
