@@ -750,6 +750,9 @@ body{
         ⬆ Import .sqlite<input type="file" accept=".sqlite,.db" onchange="importSQLite(event)" style="display:none">
       </label>
     </div>
+    <div style="margin-top:6px">
+      <button class="btn btn-secondary btn-sm" style="width:100%;font-size:0.72rem;padding:6px 8px;background:var(--purple-light);color:var(--purple);border:1px solid rgba(175,82,222,0.2)" onclick="bankSync()" title="Import transactions from ubank / NAB / ANZ via Open Banking">🏦 Sync Banks</button>
+    </div>
     <div style="display:flex;gap:6px;margin-top:6px">
       <button class="btn btn-secondary btn-sm" style="flex:1;font-size:0.72rem;padding:6px 8px;background:var(--green-light);color:var(--green);border:1px solid rgba(52,199,89,0.2)" onclick="cloudSave(true)" title="Push local data to cloud">☁ Push</button>
       <button class="btn btn-secondary btn-sm" style="flex:1;font-size:0.72rem;padding:6px 8px;background:var(--teal-light);color:var(--accent);border:1px solid rgba(90,200,250,0.2)" onclick="cloudPull()" title="Pull data from cloud">☁ Pull</button>
@@ -1461,6 +1464,96 @@ async function cloudPull() {
   setSyncStatus('synced');
   renderDashboard();
   showToast('Data pulled from cloud — ' + TXS.length + ' transactions');
+}
+
+/* ════════════════════════════════════════
+   BANK SYNC (Open Banking / CDR via /api/bank)
+   Pulls ubank / NAB / ANZ transactions and merges them into the local DB.
+   IDs are prefixed 'rb-' and stable, so re-syncing updates instead of
+   duplicating. Any edits you make to category/bucket on a synced row are
+   preserved on the next sync.
+════════════════════════════════════════ */
+const BANK_API_URL = window.FOLIO_BANK_API_URL || '/api/bank';
+
+function getBankToken(){
+  let t = localStorage.getItem('folio_bank_token');
+  if(!t){
+    t = prompt('Enter your Folio sync token (the FOLIO_SYNC_TOKEN you set in Vercel):');
+    if(!t) return null;
+    localStorage.setItem('folio_bank_token', t.trim());
+    t = t.trim();
+  }
+  return t;
+}
+
+async function bankFetch(path){
+  const token = getBankToken();
+  if(!token) throw new Error('No sync token set');
+  const res = await fetch(BANK_API_URL + path, { headers:{ 'X-Folio-Token': token } });
+  if(res.status === 401){
+    localStorage.removeItem('folio_bank_token');
+    throw new Error('Sync token rejected — click Sync Banks again to re-enter it');
+  }
+  if(!res.ok){
+    const txt = await res.text().catch(()=> '');
+    throw new Error('Bank sync failed: ' + (txt || res.status));
+  }
+  return res.json();
+}
+
+async function bankSync(days){
+  if(days === undefined){
+    const ans = prompt('How many days of bank history to import?', '90');
+    if(ans === null) return;
+    days = parseInt(ans,10) || 90;
+  }
+  showToast('Contacting your banks…');
+  setSyncStatus('syncing');
+  try{
+    const data = await bankFetch('?action=transactions&days=' + days);
+    const incoming = data.transactions || [];
+    if(!incoming.length){
+      setSyncStatus('offline');
+      showToast('No transactions returned. Connect a bank at app.redbark.com first.','error');
+      return;
+    }
+    // Preserve any manual categorisation on rows we've seen before.
+    const existing = {};
+    TXS.forEach(t => { if(String(t.id).startsWith('rb-')) existing[t.id] = t; });
+
+    let added = 0, updated = 0;
+    incoming.forEach(t => {
+      const prev = existing[t.id];
+      const row = prev
+        ? { ...t, category: prev.category || t.category, bucket: prev.bucket || 'none', note: prev.note || t.note }
+        : t;
+      db.run('INSERT OR REPLACE INTO transactions (id,type,amount,description,category,date,note,bucket) VALUES (?,?,?,?,?,?,?,?)',
+        [row.id,row.type,row.amount,row.description||'',row.category||'',row.date,row.note||'',row.bucket||'none']);
+      prev ? updated++ : added++;
+    });
+
+    persistDB();
+    syncFromDB();
+    renderDashboard();
+    setSyncStatus('synced');
+    let msg = 'Bank sync: ' + added + ' new, ' + updated + ' updated';
+    if(data.errors && data.errors.length) msg += ' (' + data.errors.length + ' account(s) errored)';
+    showToast(msg);
+    if(data.errors && data.errors.length) console.warn('Bank sync errors:', data.errors);
+  }catch(e){
+    console.error('Bank sync error', e);
+    setSyncStatus('error');
+    showToast(e.message || 'Bank sync failed','error');
+  }
+}
+
+async function bankAccounts(){
+  try{
+    const d = await bankFetch('?action=accounts');
+    console.table(d.accounts || []);
+    showToast('Found ' + (d.accounts||[]).length + ' accounts — see console');
+    return d;
+  }catch(e){ showToast(e.message,'error'); }
 }
 
 /* ── status / toast ─────────────────── */
