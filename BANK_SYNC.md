@@ -167,3 +167,23 @@ duplicates. It is just not automatic.
   ~60 min upstream cache.
 - Once data lands in Folio it is outside the CDR framework and under your own
   control. Keep the Supabase service role key secret.
+
+---
+
+## Checking a deploy
+
+Folio deploys automatically from GitHub. After a push, open:
+
+```
+https://<your-folio>.vercel.app/api/health
+```
+
+It needs no token and returns no financial data — only whether each secret is
+**present** (never its value) and what to do next. Look for:
+
+- `"build": "auto-sync-v2"` — confirms Vercel picked up the auto-sync code
+- `"ready": true` — everything needed for syncing is configured
+- `"nextSteps"` — the exact remaining setup, if any
+
+If `ready` is `false`, `nextSteps` tells you which environment variable is
+missing. Add it in Vercel → Settings → Environment Variables and redeploy.
