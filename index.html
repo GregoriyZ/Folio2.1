@@ -1552,15 +1552,28 @@ async function bankSync(opts){
 async function autoSyncOnLoad(){
   if(window.location.protocol === 'file:') return;
   const token = getBankToken(false);
-  if(!token) return; // never nag on load — set it once via the Sync Banks button
+  if(!token){ // never nag on load — set it once via the Sync Banks button
+    setLastSyncLabel(null);
+    return;
+  }
   try{
     const status = await syncFetch('?action=status', false);
     setLastSyncLabel(status.lastSync);
-    if(!status.providers || !status.providers.length) return;
+    if(!status.providers || !status.providers.length){
+      const el = document.getElementById('bank-sync-label');
+      if(el) el.textContent = 'Banks: no provider configured';
+      return;
+    }
     const age = status.lastSync ? Date.now() - new Date(status.lastSync).getTime() : Infinity;
     if(age < 60*60*1000) return;       // Redbark caches ~60 min; don't spam it
     await bankSync({ silent:true, days:45 });
-  }catch(e){ /* stay quiet on load */ }
+  }catch(e){
+    // Stay quiet, but never leave a label that implies everything is fine.
+    const el = document.getElementById('bank-sync-label');
+    if(el) el.textContent = /token/i.test(e.message||'')
+      ? 'Banks: sync token needed'
+      : 'Banks: sync unavailable';
+  }
 }
 
 async function bankAccounts(){

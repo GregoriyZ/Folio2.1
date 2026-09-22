@@ -7,7 +7,7 @@ numbers are already current.
 ## How it works
 
 ```
-Vercel Cron (daily 5am AEST)  ─┐
+Vercel Cron (daily, 19:00 UTC)─┐
 Opening Folio in a browser    ─┼──▶  /api/sync  ──▶  banks (Open Banking / CDR)
 Clicking "Sync Banks Now"     ─┘                 └─▶  auto-categorise new rows
                                                  └─▶  merge into Supabase
@@ -69,7 +69,8 @@ Project → Settings → Environment Variables:
 | `FOLIO_SYNC_TOKEN` | any long random string — `openssl rand -hex 24` | yes |
 | `REDBARK_API_KEY` | key from step 1.3 | for ANZ/NAB/ubank |
 | `UP_API_TOKEN` | `up:yeah:…` | for Up only |
-| `CRON_SECRET` | optional; Vercel sends it as a bearer on cron calls | optional |
+| `CRON_SECRET` | optional; when set, Vercel sends it as a bearer on cron calls and the sync requires it | optional |
+| `SYNC_DAYS` | optional; history window for the scheduled run (default 45) | optional |
 
 Then redeploy.
 
@@ -84,7 +85,11 @@ on syncing is silent and automatic.
 ## What you get
 
 - **🏦 Banks: 2h ago** in the sidebar — how fresh the ledger is, at a glance.
-- **Daily cron** at 05:00 AEST pulls the last 45 days.
+  It also tells you plainly when something is wrong: *not connected*,
+  *sync token needed*, *no provider configured*, or *sync unavailable*.
+- **Daily cron** at 19:00 UTC (05:00 AEST / 06:00 AEDT) pulls the last 45 days.
+  Vercel cron timezones are always UTC and Hobby allows one run per day with
+  ±59 min precision, so this is the most frequent schedule the free plan permits.
 - **On page load** Folio refreshes in the background if the last sync is over an
   hour old (Redbark caches ~60 min, so syncing more often returns the same rows).
 - **Returning to the tab** re-checks too.
@@ -116,10 +121,16 @@ would have an open proxy to your bank data. Vercel Cron is authorised separately
 
 | Call | Does |
 |---|---|
-| `GET /api/sync?days=45` | run a full sync now |
+| `GET /api/sync` | run a sync now over the default window (`SYNC_DAYS`, 45) |
+| `GET /api/sync?days=90` | run a sync over a custom window |
 | `GET /api/sync?action=status` | last sync time, row count, active providers |
 | `GET /api/sync?action=accounts` | list connected bank accounts |
 | `GET /api/sync?action=ping` | Supabase keepalive only |
+
+The cron entry deliberately has **no query string** — Vercel cron paths are
+requested as-is, so the scheduled window comes from `SYNC_DAYS` instead.
+Scheduled calls are authorised by Vercel's `vercel-cron/1.0` user agent, or by
+`CRON_SECRET` as a bearer token when you set one (recommended).
 
 In the browser console: `bankStatus()`, `bankAccounts()`, `bankSync()`.
 
@@ -140,7 +151,8 @@ duplicates. It is just not automatic.
   accounts sequentially to stay under.
 - CDR consents expire (up to 12 months). Re-authorise at app.redbark.com when a
   connection goes stale — `?action=status` surfaces the error.
-- Vercel Hobby allows daily cron jobs. Combined with the on-load refresh that is
-  plenty, given the ~60 min upstream cache.
+- Vercel Hobby allows one cron run per day, invoked only on **production**
+  deployments. Combined with the on-load refresh that is plenty, given the
+  ~60 min upstream cache.
 - Once data lands in Folio it is outside the CDR framework and under your own
   control. Keep the Supabase service role key secret.

@@ -36,10 +36,14 @@ function authorised(req) {
   const supplied = req.headers['x-folio-token'] || (req.query && req.query.token);
   if (expected && supplied === expected) return true;
 
-  // Vercel Cron
+  // Vercel Cron. When CRON_SECRET is set Vercel sends it as a bearer token.
+  // Otherwise fall back to the documented cron markers: the user agent is
+  // always `vercel-cron/1.0` and each invocation carries x-vercel-cron-schedule.
   const auth = req.headers.authorization || '';
-  if (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) return true;
-  if (!process.env.CRON_SECRET && req.headers['x-vercel-cron']) return true;
+  if (process.env.CRON_SECRET) return auth === `Bearer ${process.env.CRON_SECRET}`;
+  const ua = req.headers['user-agent'] || '';
+  if (ua.includes('vercel-cron/')) return true;
+  if (req.headers['x-vercel-cron-schedule']) return true;
   return false;
 }
 
@@ -152,7 +156,11 @@ module.exports = async function handler(req, res) {
       return send(res, 200, { ok: true, pinged: new Date().toISOString() });
     }
 
-    const result = await runSync(req.query && req.query.days);
+    // Cron paths cannot carry a query string, so the scheduled run uses
+    // SYNC_DAYS (default 45) — a wide enough window to catch anything that
+    // posted late without hammering the provider's rate limits.
+    const days = (req.query && req.query.days) || process.env.SYNC_DAYS || 45;
+    const result = await runSync(days);
     return send(res, result.ok ? 200 : 400, result);
   } catch (e) {
     return send(res, 500, { ok: false, error: e.message || 'Unexpected error' });
