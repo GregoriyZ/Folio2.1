@@ -170,6 +170,34 @@ duplicates. It is just not automatic.
 
 ---
 
+## Important: Deployment Protection
+
+Your project currently has **Deployment Protection** enabled — every URL
+returns a `302` redirect to a Vercel login instead of serving the app.
+
+This matters because **Vercel cron jobs do not follow redirects**. If the URL
+the cron calls is protected, the scheduled sync is treated as complete the
+moment it receives the 302, and your transactions never get pulled.
+
+Check **Settings → Deployment Protection** in the Vercel dashboard:
+
+- If the scope is **Standard Protection**, your production *domain* stays
+  public and the cron works. Only the generated `*-hash.vercel.app` URLs are
+  protected, which is why they redirect for me but the app still works for you.
+- If the scope is **All Deployments**, the production domain is protected too,
+  and the cron will silently do nothing. Either switch to Standard Protection,
+  or enable **Protection Bypass for Automation** (Settings → Deployment
+  Protection → Protection Bypass for Automation) so automated callers get
+  through.
+
+To confirm the cron is actually running, open **Settings → Cron Jobs → View
+Logs** after 19:00 UTC (5am AEST). A run that returns `200` is working; a `302`
+means protection is blocking it.
+
+Even if the cron is blocked, the in-app sync still works whenever you open
+Folio, because your browser follows the login redirect and carries your
+session.
+
 ## Checking a deploy
 
 Folio deploys automatically from GitHub. After a push, open:
