@@ -23,15 +23,66 @@ async function getJson(url, headers) {
   return r.json();
 }
 
-/* ── Redbark (CDR: ANZ, NAB, ubank, …) ─────────────────────── */
+/* ── Redbark (CDR: ANZ, NAB, ubank, …) ───────────────────────
+   Primary path is API v2 (snake_case, money in minor units, cursor
+   pagination). v1 is deprecated and frozen upstream, so it is kept only as a
+   fallback for keys or releases where v2 is not available yet. */
 
-function redbark(path) {
+const REDBARK_VERSION = process.env.REDBARK_API_VERSION || '2026-10-01.wattle';
+
+function redbarkKey() {
   const key = process.env.REDBARK_API_KEY;
   if (!key) throw new Error('Missing REDBARK_API_KEY');
-  return getJson(REDBARK_BASE + path, { Authorization: `Bearer ${key}` });
+  return key;
 }
 
-function redbarkToFolio(t, accountName) {
+
+function redbarkV1(path) {
+  return getJson(REDBARK_BASE + path, { Authorization: `Bearer ${redbarkKey()}` });
+}
+
+/* Walk a v2 token-paginated list to the end. */
+async function redbarkV2All(path, cap = 5000) {
+  const out = [];
+  let url = REDBARK_BASE + '/v2' + path;
+  let guard = 0;
+  while (url && out.length < cap && guard++ < 60) {
+    const page = await getJson(url, {
+      Authorization: `Bearer ${redbarkKey()}`,
+      'Redbark-Version': REDBARK_VERSION,
+    });
+    out.push(...(page.data || []));
+    url = page.next_page_url || null;
+  }
+  return out;
+}
+
+/* v2 money is an integer in minor units: { amount: 1250, currency: "aud" }. */
+function moneyToFloat(money) {
+  if (!money || typeof money !== 'object') return 0;
+  const n = Number(money.amount);
+  return Number.isFinite(n) ? n / 100 : 0;
+}
+
+function redbarkV2ToFolio(t, accountName) {
+  const value = moneyToFloat(t.amount);
+  const dir = String(t.direction || '').toLowerCase();
+  // Prefer the explicit direction; fall back to the sign of the amount.
+  const isCredit = dir ? /credit|in\b|inbound|deposit/.test(dir) : value > 0;
+  return {
+    id: 'rb-' + t.id,
+    type: isCredit ? 'income' : 'expense',
+    amount: Math.abs(value),
+    description: t.merchant_name || t.description || 'Bank transaction',
+    category: '',
+    date: t.date || String(t.datetime || t.post_datetime || '').slice(0, 10),
+    note: [accountName, t.provider_category, t.reference].filter(Boolean).join(' • '),
+    bucket: 'none',
+    source: 'redbark',
+  };
+}
+
+function redbarkV1ToFolio(t, accountName) {
   const raw = parseFloat(t.amount) || 0;
   const isCredit = (t.direction || '').toLowerCase() === 'credit' || raw > 0;
   return {
@@ -47,10 +98,35 @@ function redbarkToFolio(t, accountName) {
   };
 }
 
-async function redbarkAccounts() {
+async function redbarkAccountsV2() {
   const [conns, accts] = await Promise.all([
-    redbark('/v1/connections'),
-    redbark('/v1/accounts'),
+    redbarkV2All('/connections?limit=100'),
+    redbarkV2All('/accounts?limit=100'),
+  ]);
+  return {
+    connections: conns.map((c) => ({
+      id: c.id,
+      institution: (c.institution && c.institution.name) || c.provider,
+      status: c.status,
+      // Surfaced so a stale CDR consent is visible instead of silently empty.
+      consentExpiresAt: (c.consent && c.consent.expires_at) || null,
+    })),
+    accounts: accts.map((a) => ({
+      id: a.id,
+      connectionId: a.connection,
+      name: a.name,
+      type: a.type,
+      masked: a.account_number,
+      category: a.category,
+      provider: 'redbark',
+    })),
+  };
+}
+
+async function redbarkAccountsV1() {
+  const [conns, accts] = await Promise.all([
+    redbarkV1('/v1/connections'),
+    redbarkV1('/v1/accounts?limit=100'),
   ]);
   return {
     connections: (conns.data || []).map((c) => ({
@@ -69,20 +145,55 @@ async function redbarkAccounts() {
   };
 }
 
-async function redbarkTransactions(from, accountId) {
-  const accts = (await redbark('/v1/accounts')).data || [];
+async function redbarkAccounts() {
+  try {
+    return await redbarkAccountsV2();
+  } catch (e) {
+    if (!shouldFallBackToV1(e)) throw e;
+    return redbarkAccountsV1();
+  }
+}
+
+/* v2 is beta. Only fall back for "this API is not available to you" style
+   failures, never for a genuine auth or rate-limit problem we should surface. */
+function shouldFallBackToV1(e) {
+  return /\b(404|400|403)\b/.test(e.message || '');
+}
+
+async function redbarkTransactionsV2(from, accountId) {
+  const accts = await redbarkV2All('/accounts?limit=100');
+  const wanted = (accountId ? accts.filter((a) => a.id === accountId) : accts)
+    // /transactions is banking-only; brokerage accounts use /holdings.
+    .filter((a) => !a.category || a.category === 'banking');
+
+  const out = [];
+  const errors = [];
+  // Sequential: the heavy tier allows only 4 requests in flight.
+  for (const a of wanted) {
+    try {
+      const qs = `?account=${encodeURIComponent(a.id)}&from=${from}&limit=100`;
+      const rows = await redbarkV2All('/transactions' + qs);
+      rows.forEach((t) => out.push(redbarkV2ToFolio(t, a.name)));
+    } catch (e) {
+      errors.push(`redbark ${a.name || a.id}: ${e.message}`);
+    }
+  }
+  return { transactions: out, errors };
+}
+
+async function redbarkTransactionsV1(from, accountId) {
+  const accts = (await redbarkV1('/v1/accounts?limit=100')).data || [];
   const wanted = accountId ? accts.filter((a) => a.id === accountId) : accts;
 
   const out = [];
   const errors = [];
-  // Sequential: heavy endpoints cap at 4 in-flight and 30/min per key.
   for (const a of wanted) {
     let offset = 0;
     for (;;) {
       try {
         const qs = `connectionId=${encodeURIComponent(a.connectionId)}&accountId=${encodeURIComponent(a.id)}&from=${from}&limit=200&offset=${offset}`;
-        const page = await redbark('/v1/transactions?' + qs);
-        (page.data || []).forEach((t) => out.push(redbarkToFolio(t, a.name || a.accountName)));
+        const page = await redbarkV1('/v1/transactions?' + qs);
+        (page.data || []).forEach((t) => out.push(redbarkV1ToFolio(t, a.name || a.accountName)));
         if (!page.pagination || !page.pagination.hasMore) break;
         offset += page.pagination.limit || 200;
         if (offset > 5000) break;
@@ -95,6 +206,15 @@ async function redbarkTransactions(from, accountId) {
   return { transactions: out, errors };
 }
 
+async function redbarkTransactions(from, accountId) {
+  try {
+    return await redbarkTransactionsV2(from, accountId);
+  } catch (e) {
+    if (!shouldFallBackToV1(e)) throw e;
+    return redbarkTransactionsV1(from, accountId);
+  }
+}
+
 /* ── Up Bank (free personal API) ────────────────────────────── */
 
 function up(path) {
@@ -105,16 +225,25 @@ function up(path) {
   });
 }
 
+/* Up returns amount.value as a decimal string ("-10.56") plus
+   valueInBaseUnits as an integer (-1056). Prefer the integer: it is exact,
+   where the string relies on float parsing. */
 function upToFolio(t, accountName) {
-  const value = parseFloat(t.attributes.amount.value) || 0;
   const a = t.attributes;
+  const money = a.amount || {};
+  const value = Number.isFinite(money.valueInBaseUnits)
+    ? money.valueInBaseUnits / 100
+    : parseFloat(money.value) || 0;
+  // settledAt is null while a transaction is still HELD, so fall back to
+  // createdAt rather than emitting a row with an empty date.
+  const when = a.settledAt || a.createdAt || '';
   return {
     id: 'up-' + t.id,
     type: value > 0 ? 'income' : 'expense',
     amount: Math.abs(value),
     description: a.description || 'Up transaction',
     category: '',
-    date: String(a.settledAt || a.createdAt || '').slice(0, 10),
+    date: String(when).slice(0, 10),
     note: [accountName, a.message, a.rawText].filter(Boolean).join(' • '),
     bucket: 'none',
     source: 'up',
@@ -147,7 +276,10 @@ async function upTransactions(from) {
     errors.push('up accounts: ' + e.message);
   }
 
-  let url = `${UP_BASE}/transactions?page[size]=100&filter[since]=${encodeURIComponent(from + 'T00:00:00+10:00')}`;
+  // filter[since] must be RFC-3339. Use a UTC instant rather than a hardcoded
+  // +10:00 offset, which would be wrong during daylight saving.
+  const since = new Date(from + 'T00:00:00Z').toISOString();
+  let url = `${UP_BASE}/transactions?page[size]=100&filter[since]=${encodeURIComponent(since)}`;
   let pages = 0;
   while (url && pages < 50) {
     try {

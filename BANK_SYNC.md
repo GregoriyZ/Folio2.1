@@ -48,6 +48,10 @@ only AU aggregator that sells to individuals with a plain REST API.
    accounts comfortably. The A$10 Saver plan is cheaper but has **no API
    access**, so it cannot feed Folio.
 3. Settings → API & MCP → create an API key. Copy it, it is shown once.
+   Folio calls **Redbark API v2**, so the key needs the `data:read` scope
+   (legacy keys created before scopes existed already hold every read scope).
+   If v2 is ever unavailable for your key, Folio automatically falls back to
+   the older v1 API rather than failing.
 
 ### 2. Up Bank (free, optional)
 
@@ -67,7 +71,8 @@ Project → Settings → Environment Variables:
 | `SUPABASE_URL` | your Supabase project URL | yes (already set) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | yes (already set) |
 | `FOLIO_SYNC_TOKEN` | any long random string — `openssl rand -hex 24` | yes |
-| `REDBARK_API_KEY` | key from step 1.3 | for ANZ/NAB/ubank |
+| `REDBARK_API_KEY` | key from step 1.3 (`rbk_live_…`) | for ANZ/NAB/ubank |
+| `REDBARK_API_VERSION` | optional; API v2 release, default `2026-10-01.wattle` | optional |
 | `UP_API_TOKEN` | `up:yeah:…` | for Up only |
 | `CRON_SECRET` | optional; when set, Vercel sends it as a bearer on cron calls and the sync requires it | optional |
 | `SYNC_DAYS` | optional; history window for the scheduled run (default 45) | optional |
@@ -147,10 +152,16 @@ duplicates. It is just not automatic.
 
 - CDR signs amounts: negative = debit → Folio `expense`, positive = credit →
   `income`. Only posted transactions are returned; pending ones are excluded.
-- Redbark rate limits: 30/min on transactions, 4 concurrent. The sync fetches
-  accounts sequentially to stay under.
+  Redbark v2 reports money in integer minor units (`{amount: 1250}` = $12.50)
+  and Folio converts it, so figures are exact rather than float-parsed.
+- Brokerage accounts are skipped by the transaction sync — Redbark exposes
+  those through `/holdings` instead, which Folio does not read.
+- Redbark rate limits: 30/min on the heavy tier with 4 requests in flight. The
+  sync fetches accounts sequentially to stay under.
 - CDR consents expire (up to 12 months). Re-authorise at app.redbark.com when a
-  connection goes stale — `?action=status` surfaces the error.
+  connection goes stale — `?action=accounts` reports each connection's status
+  and consent expiry, and a revoked key surfaces as an error rather than a
+  silently empty sync.
 - Vercel Hobby allows one cron run per day, invoked only on **production**
   deployments. Combined with the on-load refresh that is plenty, given the
   ~60 min upstream cache.
