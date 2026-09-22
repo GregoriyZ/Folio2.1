@@ -1,92 +1,146 @@
-# Connecting ubank, NAB and ANZ to Folio
+# Automatic bank sync for Folio
 
-Two options. Start with the free one.
+Folio pulls ANZ, NAB, ubank (and Up) transactions on its own, categorises them,
+and writes them into your ledger. You do not click anything: open Folio and the
+numbers are already current.
 
-| | Free CSV import | Open Banking auto-sync |
-|---|---|---|
-| Cost | $0 forever | ~A$16/mo (7-day free trial) |
-| Effort | Download a CSV, click import | One-time setup, then one click |
-| Freshness | Whenever you export | On demand |
-| Button | 🏛 Import Bank CSV | 🏦 Sync Banks |
+## How it works
 
----
+```
+Vercel Cron (daily 5am AEST)  ─┐
+Opening Folio in a browser    ─┼──▶  /api/sync  ──▶  banks (Open Banking / CDR)
+Clicking "Sync Banks Now"     ─┘                 └─▶  auto-categorise new rows
+                                                 └─▶  merge into Supabase
+                                                            │
+                                    Folio loads ◀───────────┘
+```
 
-# Option 1 — Bank CSV import (free)
+Key points:
 
-There is **no fully free automated feed** for ubank, NAB or ANZ. Under the CDR
-regime only accredited recipients can call bank APIs, and accreditation costs
-far more than a subscription. The only free-forever sources are the CSV exports
-the banks give you directly. (Up Bank offers a genuinely free personal API, but
-only Up customers can use it — it does nothing for your three banks.)
-
-So Folio has a CSV importer that understands the AU bank export formats:
-
-1. **ubank** — app/web → Transactions → Export → CSV
-2. **NAB** — Internet Banking → account → Transaction history → Export → CSV
-3. **ANZ** — Internet Banking → account → Search/Export transactions → CSV
-
-Then click **🏛 Import Bank CSV** in the Folio sidebar and pick the file.
-
-It auto-detects:
-- headerless `Date,Amount,Description` exports (classic ANZ/NAB)
-- headered exports with a single signed `Amount` column
-- exports with separate `Debit`/`Credit` (or Money In/Out) columns
-- dates as `DD/MM/YYYY`, `DD/MM/YY`, `10 Sep 2026`, or ISO
-- amounts with `$`, thousands commas, and `(1,250.00)` accounting negatives
-
-Each row gets a deterministic id hashed from date + amount + description, so
-**re-importing an overlapping file updates rather than duplicates**, and any
-category or bucket you assigned by hand is preserved.
+- The sync runs **server-side**. Folio does not have to be open for new
+  transactions to land, so nothing piles up while you are not looking.
+- Every Supabase round trip doubles as a keepalive, so a free-tier project
+  **never pauses for inactivity** again.
+- Rows keep a stable bank id (`rb-…`, `up-…`), so re-syncing an overlapping
+  window updates rather than duplicates.
+- **Your edits always win.** Once a row exists in the ledger, a later sync only
+  refreshes the bank-owned fields (amount, date). Whatever category or bucket
+  you set by hand stays.
 
 ---
-
-# Option 2 — Open Banking auto-sync (paid)
-
-Pulls transactions automatically through **Consumer Data Right**.
-
-## Why a paid provider is required here
-
-- Screen scraping your bank logins breaks their T&Cs and is fragile.
-- Becoming a CDR **Accredited Data Recipient** yourself is a months-long, expensive process. Not viable for a personal app.
-- So Folio sits behind an existing accredited provider. We use **Redbark**, a CDR Representative of **Fiskil** (ADR `ADRBNK000246`), which supports ubank, NAB and ANZ (plus ~100 other AU institutions) and sells to individual developers with a plain REST API.
-- Alternative aggregators (Basiq, Frollo, Fiskil direct) are enterprise-sales oriented: real (non-sandbox) data needs a business contract. Redbark's Developer plan (A$16/mo, 7-day free trial) is the realistic path for one person.
 
 ## One-time setup
 
-1. Sign up at <https://app.redbark.com> and connect **ubank**, **NAB** and **ANZ**. Each one sends you through your own bank's official CDR consent flow — you never give Folio your banking password.
-2. Choose the **Developer** plan (API access starts at that tier; trials count).
-3. Create an API key: Settings → API & MCP. Copy it, it is shown once.
-4. In Vercel (project → Settings → Environment Variables) add:
+### 1. Connect your banks (ANZ, NAB, ubank)
 
-   | Name | Value |
-   |---|---|
-   | `REDBARK_API_KEY` | the key from step 3 |
-   | `FOLIO_SYNC_TOKEN` | any long random string, e.g. `openssl rand -hex 24` |
+There is no free automated feed for these three. Under the Consumer Data Right
+only accredited recipients can call bank APIs, and accreditation costs far more
+than a subscription. So Folio sits behind an accredited provider.
 
-5. Redeploy.
+Use **Redbark** (CDR Representative of Fiskil, ADR `ADRBNK000246`). It is the
+only AU aggregator that sells to individuals with a plain REST API.
 
-## Using it
+1. Sign up at <https://app.redbark.com> and connect **ANZ**, **NAB** and
+   **ubank**. Each goes through your own bank's official CDR consent screen —
+   Folio never sees a banking password.
+2. Pick the **Developer** plan, A$16/mo (7-day free trial). API access starts at
+   that tier and it allows 6 connections / 24 accounts, which covers your four
+   accounts comfortably. The A$10 Saver plan is cheaper but has **no API
+   access**, so it cannot feed Folio.
+3. Settings → API & MCP → create an API key. Copy it, it is shown once.
 
-Click **🏦 Sync Banks** in the sidebar. The first time it asks for your `FOLIO_SYNC_TOKEN` (stored in localStorage), then asks how many days of history to import.
+### 2. Up Bank (free, optional)
 
-- Synced rows get stable IDs (`rb-<id>`), so re-syncing **updates** rather than duplicates.
-- Category and bucket you set by hand on a synced row are preserved across syncs.
-- `bankAccounts()` in the browser console lists your connected accounts.
+If one of your accounts is Up, it has a genuinely free personal API and needs no
+subscription: <https://api.up.com.au/getting_started> → copy your personal
+access token (`up:yeah:…`).
 
-## Endpoint
+Providers are independent. Set either, or both, and the sync merges whatever is
+configured.
 
-`/api/bank` (server-side proxy, so the Redbark key never reaches the browser):
+### 3. Vercel environment variables
 
-- `GET /api/bank?action=accounts` — connections and accounts
-- `GET /api/bank?action=transactions&days=90[&accountId=…]` — Folio-shaped transactions
+Project → Settings → Environment Variables:
 
-Both require the header `X-Folio-Token: <FOLIO_SYNC_TOKEN>`. Without it you'd have an open proxy to your bank data.
+| Name | Value | Required |
+|---|---|---|
+| `SUPABASE_URL` | your Supabase project URL | yes (already set) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | yes (already set) |
+| `FOLIO_SYNC_TOKEN` | any long random string — `openssl rand -hex 24` | yes |
+| `REDBARK_API_KEY` | key from step 1.3 | for ANZ/NAB/ubank |
+| `UP_API_TOKEN` | `up:yeah:…` | for Up only |
+| `CRON_SECRET` | optional; Vercel sends it as a bearer on cron calls | optional |
+
+Then redeploy.
+
+### 4. Tell the browser the token, once
+
+Open Folio, click **🏦 Sync Banks Now**, paste your `FOLIO_SYNC_TOKEN`. It is
+stored in localStorage and you will not be asked again on that device. From then
+on syncing is silent and automatic.
+
+---
+
+## What you get
+
+- **🏦 Banks: 2h ago** in the sidebar — how fresh the ledger is, at a glance.
+- **Daily cron** at 05:00 AEST pulls the last 45 days.
+- **On page load** Folio refreshes in the background if the last sync is over an
+  hour old (Redbark caches ~60 min, so syncing more often returns the same rows).
+- **Returning to the tab** re-checks too.
+- **🏦 Sync Banks Now** forces an immediate pull.
+
+## Auto-categorisation
+
+New rows are matched against AU merchant patterns and land in the right Folio
+category automatically — Woolworths → Groceries, Seven Seeds → Coffee, BP →
+Fuel, Netflix → Subscriptions, salary credits → Salary / Wages, Centrelink →
+Government, and so on.
+
+Transfers to savings and buys through Vanguard / CommSec / Pearler etc. are
+promoted to `savings` / `investment` type, so moving money around does not get
+counted as spending.
+
+Anything unmatched lands in **Other**. Re-categorise it once in Folio and it
+stays that way forever.
+
+To tune the rules, edit `api/_lib/categorise.js` — it is a plain list of
+`[categoryId, regex]` pairs.
+
+---
+
+## Endpoints
+
+All require `X-Folio-Token: <FOLIO_SYNC_TOKEN>` (or `?token=`), otherwise you
+would have an open proxy to your bank data. Vercel Cron is authorised separately.
+
+| Call | Does |
+|---|---|
+| `GET /api/sync?days=45` | run a full sync now |
+| `GET /api/sync?action=status` | last sync time, row count, active providers |
+| `GET /api/sync?action=accounts` | list connected bank accounts |
+| `GET /api/sync?action=ping` | Supabase keepalive only |
+
+In the browser console: `bankStatus()`, `bankAccounts()`, `bankSync()`.
+
+## Still available: free CSV import
+
+If you would rather not pay, **🏛 Import Bank CSV** still works with the CSV
+exports ANZ, NAB and ubank give you. It auto-detects the AU formats (headerless
+`Date,Amount,Description`, signed amount columns, separate Debit/Credit columns,
+`DD/MM/YYYY` and ISO dates, `$`/comma/accounting negatives) and hashes each row
+to a deterministic id, so re-importing an overlapping file updates rather than
+duplicates. It is just not automatic.
 
 ## Notes
 
-- CDR signs amounts: negative = debit → Folio `expense`, positive = credit → Folio `income`.
-- Only posted transactions are returned; pending ones are excluded upstream.
-- Redbark caches transactions ~60 min per connection, so syncing more often than hourly returns the same rows.
-- Rate limits: 30/min on transactions, 4 concurrent. The proxy fetches accounts sequentially to stay under.
-- CDR consents expire (up to 12 months). Re-authorise at app.redbark.com when a connection goes stale.
-- Once data lands in Folio it is outside the CDR framework and under your own control. Your Supabase row holds real transaction data — keep the service role key secret.
+- CDR signs amounts: negative = debit → Folio `expense`, positive = credit →
+  `income`. Only posted transactions are returned; pending ones are excluded.
+- Redbark rate limits: 30/min on transactions, 4 concurrent. The sync fetches
+  accounts sequentially to stay under.
+- CDR consents expire (up to 12 months). Re-authorise at app.redbark.com when a
+  connection goes stale — `?action=status` surfaces the error.
+- Vercel Hobby allows daily cron jobs. Combined with the on-load refresh that is
+  plenty, given the ~60 min upstream cache.
+- Once data lands in Folio it is outside the CDR framework and under your own
+  control. Keep the Supabase service role key secret.

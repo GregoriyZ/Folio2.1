@@ -26,6 +26,7 @@ function normalizePayload(body) {
     transactions: Array.isArray(safe.transactions) ? safe.transactions : [],
     categories: Array.isArray(safe.categories) ? safe.categories : [],
     budgets: safe.budgets && typeof safe.budgets === 'object' ? safe.budgets : {},
+    meta: safe.meta && typeof safe.meta === 'object' ? safe.meta : {},
   };
 }
 
@@ -77,6 +78,16 @@ module.exports = async function handler(req, res) {
 
     if (action === 'save' && req.method === 'POST') {
       const payload = normalizePayload(req.body);
+      // The browser never owns sync metadata — keep whatever the server-side
+      // sync wrote, so a save from an open tab can't clobber it.
+      try {
+        const existing = await supabaseRequest(
+          `/rest/v1/${encodeURIComponent(TABLE_NAME)}?select=data&id=eq.${encodeURIComponent(DATA_ROW_ID)}&limit=1`
+        );
+        const rows = await existing.json();
+        const prevMeta = rows && rows[0] && rows[0].data && rows[0].data.meta;
+        if (prevMeta && typeof prevMeta === 'object') payload.meta = { ...prevMeta, ...payload.meta };
+      } catch (_) { /* first write, nothing to preserve */ }
       const row = {
         id: DATA_ROW_ID,
         data: payload,

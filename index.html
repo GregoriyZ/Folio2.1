@@ -736,6 +736,10 @@ body{
       <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background 0.4s"></span>
       <span id="sync-label">☁ Connecting…</span>
     </div>
+    <div id="bank-sync-status" style="display:flex;align-items:center;gap:5px;margin-top:4px;font-size:0.72rem;color:var(--text3)">
+      <span style="flex-shrink:0">🏦</span>
+      <span id="bank-sync-label">Banks: checking…</span>
+    </div>
     <div style="display:flex;gap:6px;margin-top:10px">
       <button class="btn btn-secondary btn-sm" style="flex:1;font-size:0.72rem;padding:6px 8px" onclick="exportSQLite()" title="Download as .sqlite file">💾 .sqlite</button>
       <button class="btn btn-secondary btn-sm" style="flex:1;font-size:0.72rem;padding:6px 8px" onclick="exportCSV()" title="Export transactions as CSV">📄 CSV</button>
@@ -756,7 +760,7 @@ body{
       </label>
     </div>
     <div style="margin-top:6px">
-      <button class="btn btn-secondary btn-sm" style="width:100%;font-size:0.72rem;padding:6px 8px;background:var(--purple-light);color:var(--purple);border:1px solid rgba(175,82,222,0.2)" onclick="bankSync()" title="Auto-sync via Open Banking (needs a Redbark key)">🏦 Sync Banks</button>
+      <button class="btn btn-secondary btn-sm" style="width:100%;font-size:0.72rem;padding:6px 8px;background:var(--purple-light);color:var(--purple);border:1px solid rgba(175,82,222,0.2)" onclick="bankSync()" title="Pull ANZ / NAB / ubank / Up transactions now">🏦 Sync Banks Now</button>
     </div>
     <div style="display:flex;gap:6px;margin-top:6px">
       <button class="btn btn-secondary btn-sm" style="flex:1;font-size:0.72rem;padding:6px 8px;background:var(--green-light);color:var(--green);border:1px solid rgba(52,199,89,0.2)" onclick="cloudSave(true)" title="Push local data to cloud">☁ Push</button>
@@ -1423,10 +1427,11 @@ function setSyncStatus(state) {
   lbl.textContent = txt;
 }
 
-async function cloudPull() {
+async function cloudPull(opts) {
+  const silent = opts && opts.silent;
   if (window.location.protocol === 'file:') {
     setSyncStatus('offline');
-    showToast('Cloud pull unavailable in file mode. ' + getCloudSetupHint(), 'error');
+    if (!silent) showToast('Cloud pull unavailable in file mode. ' + getCloudSetupHint(), 'error');
     return;
   }
   setSyncStatus('syncing');
@@ -1434,12 +1439,12 @@ async function cloudPull() {
   try {
     cloudData = await cloudLoad();
   } catch (e) {
-    showToast('Cloud pull failed. ' + getCloudSetupHint(), 'error');
+    if (!silent) showToast('Cloud pull failed. ' + getCloudSetupHint(), 'error');
     setSyncStatus('error');
     return;
   }
   if (!cloudData || !cloudData.transactions || cloudData.transactions.length === 0) {
-    showToast('No data found in cloud (or cloud is unreachable)', 'error');
+    if (!silent) showToast('No data found in cloud (or cloud is unreachable)', 'error');
     setSyncStatus('offline');
     return;
   }
@@ -1468,95 +1473,110 @@ async function cloudPull() {
   localStorage.setItem('folio_db', b64);
   setSyncStatus('synced');
   renderDashboard();
-  showToast('Data pulled from cloud — ' + TXS.length + ' transactions');
+  if (!silent) showToast('Data pulled from cloud — ' + TXS.length + ' transactions');
 }
 
 /* ════════════════════════════════════════
-   BANK SYNC (Open Banking / CDR via /api/bank)
-   Pulls ubank / NAB / ANZ transactions and merges them into the local DB.
-   IDs are prefixed 'rb-' and stable, so re-syncing updates instead of
-   duplicating. Any edits you make to category/bucket on a synced row are
-   preserved on the next sync.
+   BANK SYNC (Open Banking / CDR via /api/sync)
+   The real work happens server-side: /api/sync pulls ANZ / NAB / ubank / Up,
+   auto-categorises new rows and merges them straight into Supabase on a daily
+   cron. The browser just triggers a refresh when you open Folio and pulls the
+   result down, so the ledger is already up to date when you arrive.
 ════════════════════════════════════════ */
-const BANK_API_URL = window.FOLIO_BANK_API_URL || '/api/bank';
+const SYNC_API_URL = window.FOLIO_SYNC_API_URL || '/api/sync';
 
-function getBankToken(){
+function getBankToken(promptIfMissing = true){
   let t = localStorage.getItem('folio_bank_token');
-  if(!t){
+  if(!t && promptIfMissing){
     t = prompt('Enter your Folio sync token (the FOLIO_SYNC_TOKEN you set in Vercel):');
     if(!t) return null;
-    localStorage.setItem('folio_bank_token', t.trim());
     t = t.trim();
+    localStorage.setItem('folio_bank_token', t);
   }
   return t;
 }
 
-async function bankFetch(path){
-  const token = getBankToken();
+async function syncFetch(path, promptIfMissing = true){
+  const token = getBankToken(promptIfMissing);
   if(!token) throw new Error('No sync token set');
-  const res = await fetch(BANK_API_URL + path, { headers:{ 'X-Folio-Token': token } });
+  const res = await fetch(SYNC_API_URL + path, { headers:{ 'X-Folio-Token': token } });
   if(res.status === 401){
     localStorage.removeItem('folio_bank_token');
     throw new Error('Sync token rejected — click Sync Banks again to re-enter it');
   }
-  if(!res.ok){
-    const txt = await res.text().catch(()=> '');
-    throw new Error('Bank sync failed: ' + (txt || res.status));
-  }
-  return res.json();
+  const data = await res.json().catch(()=> ({}));
+  if(!res.ok) throw new Error(data.error || ('Bank sync failed: ' + res.status));
+  return data;
 }
 
-async function bankSync(days){
-  if(days === undefined){
-    const ans = prompt('How many days of bank history to import?', '90');
-    if(ans === null) return;
-    days = parseInt(ans,10) || 90;
-  }
-  showToast('Contacting your banks…');
-  setSyncStatus('syncing');
+function relativeTime(iso){
+  if(!iso) return 'never';
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if(mins < 2) return 'just now';
+  if(mins < 60) return mins + ' min ago';
+  const hrs = Math.round(mins/60);
+  if(hrs < 24) return hrs + 'h ago';
+  return Math.round(hrs/24) + 'd ago';
+}
+
+function setLastSyncLabel(iso){
+  const el = document.getElementById('bank-sync-label');
+  if(el) el.textContent = iso ? 'Banks: ' + relativeTime(iso) : 'Banks: not connected';
+}
+
+/* Run a server-side sync, then pull the merged ledger into the browser. */
+async function bankSync(opts){
+  const silent = opts && opts.silent;
+  const days = (opts && opts.days) || 45;
   try{
-    const data = await bankFetch('?action=transactions&days=' + days);
-    const incoming = data.transactions || [];
-    if(!incoming.length){
-      setSyncStatus('offline');
-      showToast('No transactions returned. Connect a bank at app.redbark.com first.','error');
-      return;
-    }
-    // Preserve any manual categorisation on rows we've seen before.
-    const existing = {};
-    TXS.forEach(t => { if(String(t.id).startsWith('rb-')) existing[t.id] = t; });
-
-    let added = 0, updated = 0;
-    incoming.forEach(t => {
-      const prev = existing[t.id];
-      const row = prev
-        ? { ...t, category: prev.category || t.category, bucket: prev.bucket || 'none', note: prev.note || t.note }
-        : t;
-      db.run('INSERT OR REPLACE INTO transactions (id,type,amount,description,category,date,note,bucket) VALUES (?,?,?,?,?,?,?,?)',
-        [row.id,row.type,row.amount,row.description||'',row.category||'',row.date,row.note||'',row.bucket||'none']);
-      prev ? updated++ : added++;
-    });
-
-    persistDB();
-    syncFromDB();
-    renderDashboard();
+    if(!silent) showToast('Contacting your banks…');
+    setSyncStatus('syncing');
+    const data = await syncFetch('?days=' + days, !silent);
+    await cloudPull({ silent:true });
+    setLastSyncLabel(data.lastSync);
     setSyncStatus('synced');
-    let msg = 'Bank sync: ' + added + ' new, ' + updated + ' updated';
-    if(data.errors && data.errors.length) msg += ' (' + data.errors.length + ' account(s) errored)';
-    showToast(msg);
+    if(!silent || data.added){
+      showToast('Bank sync: ' + data.added + ' new, ' + data.updated + ' updated');
+    }
     if(data.errors && data.errors.length) console.warn('Bank sync errors:', data.errors);
+    return data;
   }catch(e){
-    console.error('Bank sync error', e);
-    setSyncStatus('error');
-    showToast(e.message || 'Bank sync failed','error');
+    console.warn('Bank sync error', e);
+    if(!silent){ setSyncStatus('error'); showToast(e.message || 'Bank sync failed','error'); }
+    return null;
   }
+}
+
+/* Called on every page load: refreshes in the background so the numbers you
+   are looking at are current, without you clicking anything. */
+async function autoSyncOnLoad(){
+  if(window.location.protocol === 'file:') return;
+  const token = getBankToken(false);
+  if(!token) return; // never nag on load — set it once via the Sync Banks button
+  try{
+    const status = await syncFetch('?action=status', false);
+    setLastSyncLabel(status.lastSync);
+    if(!status.providers || !status.providers.length) return;
+    const age = status.lastSync ? Date.now() - new Date(status.lastSync).getTime() : Infinity;
+    if(age < 60*60*1000) return;       // Redbark caches ~60 min; don't spam it
+    await bankSync({ silent:true, days:45 });
+  }catch(e){ /* stay quiet on load */ }
 }
 
 async function bankAccounts(){
   try{
-    const d = await bankFetch('?action=accounts');
+    const d = await syncFetch('?action=accounts');
     console.table(d.accounts || []);
     showToast('Found ' + (d.accounts||[]).length + ' accounts — see console');
+    return d;
+  }catch(e){ showToast(e.message,'error'); }
+}
+
+async function bankStatus(){
+  try{
+    const d = await syncFetch('?action=status');
+    console.log('Folio sync status', d);
+    showToast('Last bank sync: ' + relativeTime(d.lastSync) + ' • ' + (d.transactions||0) + ' transactions');
     return d;
   }catch(e){ showToast(e.message,'error'); }
 }
@@ -2178,6 +2198,13 @@ async function init(){
   setSaveStatus('saved');
   renderDashboard();
   renderTipsCarousel();
+
+  // Kick off the background bank refresh — never blocks the UI.
+  autoSyncOnLoad();
+  // Re-check when you come back to the tab after leaving it open.
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible') autoSyncOnLoad();
+  });
 }
 
 function allCats(){ return [...CATS.expense,...CATS.income,...CATS.savings,...CATS.investment]; }
