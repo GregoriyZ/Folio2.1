@@ -36,6 +36,18 @@ const EXPENSE_RULES = [
   ['tax', /\bato\b|tax office|account keeping fee|monthly fee|overdrawn fee|dishonour|late fee|interest charged|foreign (transaction|currency) fee|atm fee/i],
 ];
 
+/* Card networks and wallets prefix the real merchant, e.g.
+   "PAYPAL *SPOTIFY", "SQ *SEVEN SEEDS", "SP THE ICONIC". Strip the wrapper so
+   the merchant rules below see the name they are written against. Also collapse
+   the trailing noise AU banks append: card numbers, city, state, "AUS". */
+function normalise(text) {
+  return String(text || '')
+    .replace(/\b(paypal|sq|sp|sumup|zip|afterpay|klarna|humm)\s*\*\s*/gi, ' ')
+    .replace(/\bvisa purchase|eftpos|direct debit|card\s*x?\d{3,}/gi, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 const INCOME_RULES = [
   ['salary', /salary|payroll|wages|pay run|employer|\bpay\b.*(pty|ltd)/i],
   ['govt', /centrelink|services australia|austudy|youth allowance|\bato\b.*refund|tax refund|department of/i],
@@ -54,7 +66,12 @@ const INVEST_RE = /vanguard|betashares|commsec|selfwealth|\bstake\b|pearler|spac
    to 'savings'/'investment' when the description clearly says so, so money you
    move into savings or ETFs is not counted as spending. */
 function categorise(tx) {
-  const text = [tx.description, tx.note].filter(Boolean).join(' ');
+  const text = normalise([tx.description, tx.note].filter(Boolean).join(' '));
+  // Savings/investment promotion looks at the description ONLY. The note
+  // carries the account name, so an account called "ubank Save Account" would
+  // otherwise reclassify every expense on it as savings and quietly drop it
+  // out of your spending totals.
+  const desc = normalise(tx.description);
   const type = tx.type === 'income' ? 'income' : 'expense';
   if (!text) return { type, category: type === 'income' ? 'misc-inc' : 'misc-exp' };
 
@@ -63,8 +80,8 @@ function categorise(tx) {
     return { type, category: 'misc-inc' };
   }
 
-  if (INVEST_RE.test(text)) return { type: 'investment', category: 'stocks' };
-  if (SAVINGS_RE.test(text)) return { type: 'savings', category: 'gen-savings' };
+  if (INVEST_RE.test(desc)) return { type: 'investment', category: 'stocks' };
+  if (SAVINGS_RE.test(desc)) return { type: 'savings', category: 'gen-savings' };
   for (const [id, re] of EXPENSE_RULES) if (re.test(text)) return { type, category: id };
   return { type, category: 'misc-exp' };
 }

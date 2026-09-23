@@ -156,6 +156,30 @@ module.exports = async function handler(req, res) {
       return send(res, 200, { ok: true, pinged: new Date().toISOString() });
     }
 
+    // Diagnostic: which rows fell through to "Other", and what their raw bank
+    // descriptions were. This is the list to write rules against — grouped so
+    // a merchant you hit weekly shows up once, with a count and total spend.
+    if (action === 'uncategorised') {
+      const data = await store.load();
+      const MISC = new Set(['misc-exp', 'misc-inc']);
+      const groups = new Map();
+      for (const t of data.transactions) {
+        if (!MISC.has(t.category)) continue;
+        const key = (t.description || '').trim() || '(no description)';
+        const g = groups.get(key) || { description: key, type: t.type, count: 0, total: 0, note: t.note || null };
+        g.count += 1;
+        g.total += Math.abs(Number(t.amount) || 0);
+        groups.set(key, g);
+      }
+      const rows = [...groups.values()].sort((a, b) => b.total - a.total);
+      return send(res, 200, {
+        ok: true,
+        uncategorised: rows.length,
+        ofTotal: data.transactions.length,
+        rows: rows.slice(0, 100),
+      });
+    }
+
     // Cron paths cannot carry a query string, so the scheduled run uses
     // SYNC_DAYS (default 45) — a wide enough window to catch anything that
     // posted late without hammering the provider's rate limits.
