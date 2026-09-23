@@ -76,6 +76,10 @@ function merge(existing, incoming) {
         type: guess.type,
         category: guess.category,
         bucket: raw.bucket || 'none',
+        // Marks this classification as a machine guess, not your decision.
+        // ?action=recategorise only rewrites rows still carrying this flag,
+        // so improving the rules never overwrites a manual correction.
+        autoCat: true,
       });
       added++;
     }
@@ -177,6 +181,52 @@ module.exports = async function handler(req, res) {
         uncategorised: rows.length,
         ofTotal: data.transactions.length,
         rows: rows.slice(0, 100),
+      });
+    }
+
+    // Re-run the (improved) rules over rows that were auto-categorised and
+    // never touched by hand. Dry run by default: add &apply=1 to write.
+    //
+    // Rows predating the autoCat flag are treated as auto-guesses only when
+    // they still sit in Other, which is the safe reading — anything you had
+    // deliberately filed elsewhere is left alone.
+    if (action === 'recategorise') {
+      const data = await store.load();
+      const apply = String((req.query && req.query.apply) || '') === '1';
+      const MISC = new Set(['misc-exp', 'misc-inc']);
+      const changes = [];
+
+      const next = data.transactions.map((t) => {
+        const editable = t.autoCat === true
+          || (t.autoCat === undefined && MISC.has(t.category));
+        if (!editable) return t;
+
+        const guess = categorise(t);
+        if (guess.type === t.type && guess.category === t.category) return t;
+
+        changes.push({
+          description: t.description,
+          date: t.date,
+          amount: t.amount,
+          from: `${t.type}/${t.category}`,
+          to: `${guess.type}/${guess.category}`,
+        });
+        return { ...t, type: guess.type, category: guess.category, autoCat: true };
+      });
+
+      if (apply && changes.length) {
+        await store.save({ ...data, transactions: next });
+      }
+
+      return send(res, 200, {
+        ok: true,
+        applied: apply,
+        changed: changes.length,
+        scanned: data.transactions.length,
+        note: apply
+          ? 'Ledger updated. Manual categorisations were preserved.'
+          : 'Dry run — nothing written. Re-send with &apply=1 to commit.',
+        changes: changes.slice(0, 200),
       });
     }
 

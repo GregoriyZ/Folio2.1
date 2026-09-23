@@ -117,6 +117,35 @@ stays that way forever.
 To tune the rules, edit `api/_lib/categorise.js` — it is a plain list of
 `[categoryId, regex]` pairs.
 
+### Improving accuracy on your own data
+
+Rules can only match descriptors they have seen. To find what is actually
+wrong, ask the ledger rather than guessing:
+
+```
+/api/sync?action=uncategorised&token=…
+```
+
+That returns every row sitting in **Other**, grouped by description and sorted
+by total spend, so the merchants worth writing a rule for are at the top. Add
+them to `api/_lib/categorise.js`, then preview the effect:
+
+```
+/api/sync?action=recategorise&token=…            # dry run, writes nothing
+/api/sync?action=recategorise&apply=1&token=…    # commit the changes
+```
+
+**Your manual work is never overwritten.** Rows carry an `autoCat` flag marking
+them as a machine guess; the moment you save a category by hand the flag is
+cleared, and `recategorise` skips those rows permanently. Rows from before the
+flag existed are only touched if they are still sitting in Other.
+
+Run the rule tests after editing:
+
+```
+node api/_lib/categorise.test.js
+```
+
 ---
 
 ## Endpoints
@@ -131,6 +160,9 @@ would have an open proxy to your bank data. Vercel Cron is authorised separately
 | `GET /api/sync?action=status` | last sync time, row count, active providers |
 | `GET /api/sync?action=accounts` | list connected bank accounts |
 | `GET /api/sync?action=ping` | Supabase keepalive only |
+| `GET /api/sync?action=uncategorised` | everything sitting in **Other**, grouped by description, biggest spend first |
+| `GET /api/sync?action=recategorise` | dry run: show what improved rules *would* change |
+| `GET /api/sync?action=recategorise&apply=1` | actually apply those changes |
 
 The cron entry deliberately has **no query string** — Vercel cron paths are
 requested as-is, so the scheduled window comes from `SYNC_DAYS` instead.

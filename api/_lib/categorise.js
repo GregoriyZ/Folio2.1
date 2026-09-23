@@ -5,33 +5,41 @@
  */
 
 const EXPENSE_RULES = [
-  ['food', /woolworth|coles|aldi|iga|foodworks|costco|grocer|harris farm|supabarn/i],
-  ['dining', /mcdonald|kfc|hungry jack|guzman|nando|domino|pizza|sushi|noodle|restaurant|bistro|kebab|grill|uber\s*eats|doordash|menulog|deliveroo|bakery|thai|ramen|burger/i],
-  ['coffee', /coffee|cafe|café|starbucks|gloria jean|boost juice|chatime|gong cha|espresso|roaster/i],
-  ['fuel', /bp\b|shell|caltex|ampol|7-eleven|united petro|mobil|petrol|fuel/i],
-  ['transport', /uber(?!\s*eats)|didi|ola\b|taxi|13cabs|opal|myki|translink|go card|metro|train|tram|bus\b|parking|wilson park|secure park|toll|linkt|e-?toll/i],
-  ['housing', /rent\b|rental payment|mortgage|real estate|property manage|strata|body corp/i],
-  ['utilities', /agl\b|origin energy|energy australia|alinta|red energy|simply energy|powershop|water corp|sydney water|yarra valley|electric|\bgas\b(?!oline)|council rates/i],
-  ['internet', /telstra|optus.*(nbn|internet)|aussie broadband|superloop|tpg|iinet|launtel|nbn\b|exetel/i],
-  ['phone', /amaysim|boost mobile|kogan mobile|felix mobile|belong|catch connect|mobile plan|prepaid recharge|vodafone/i],
-  ['streaming', /netflix|spotify|disney|stan\b|binge|kayo|amazon prime|youtube premium|apple\.?com\/bill|icloud|patreon|audible|paramount|crunchyroll|adobe|microsoft 365|chatgpt|openai|claude|anthropic|github|notion|canva/i],
-  ['health', /chemist|pharmacy|priceline|terry white|amcal|medical|doctor|gp\b|clinic|pathology|physio|hospital|medicare/i],
-  ['medical', /dental|dentist|optical|opsm|specsavers|orthodont/i],
-  ['gym', /gym|fitness|anytime|f45|goodlife|plus fitness|snap fitness|crossfit|pilates|yoga/i],
-  ['insurance', /insurance|nrma|racv|racq|aami|budget direct|allianz|bupa|medibank|hcf\b|nib\b/i],
-  ['education', /university|monash|unimelb|usyd|unsw|rmit|tafe|coursera|udemy|textbook|student servic|amenities fee|hecs|help debt/i],
-  ['clothing', /uniqlo|h&m|zara|cotton on|kmart.*cloth|myer|david jones|asos|the iconic|nike|adidas|sneaker|shoe/i],
-  ['shopping', /kmart|target|big w|amazon|ebay|temu|shein|officework|jb hi-?fi|harvey norman|bunnings|catch\.com|australia post|auspost/i],
-  ['beauty', /barber|hair|salon|nail|sephora|mecca|beauty|skincare|spa\b/i],
-  ['alcohol', /dan murphy|bws|liquorland|liquor|cellarbrations|vintage cellars|brewery|bottle shop|first choice liquor/i],
-  ['entertainment', /cinema|hoyts|village cinemas|event cinemas|imax|ticketek|ticketmaster|eventbrite|concert|theatre|museum|zoo|aquarium|bowling|escape room/i],
-  ['gaming', /steam(?!\s*clean)|playstation|xbox|nintendo|epic games|riot games|blizzard|roblox|twitch/i],
-  ['travel', /qantas|jetstar|virgin australia|rex airlines|airbnb|booking\.com|expedia|agoda|hotel|motel|hostel|flight cent|webjet|skyscanner|trip\.com/i],
-  ['pets', /petbarn|pet ?stock|petco|vet\b|veterinar|greencross|pet circle/i],
-  ['sport', /sport|golf|tennis|surf|ski\b|snowboard|rebel sport|decathlon|anaconda|bcf\b/i],
-  ['gifts', /gift card|flower|florist|bloom|hamper/i],
-  ['charity', /donation|donate|charity|unicef|red cross|oxfam|fundraise|gofundme/i],
-  ['home', /ikea|freedom furn|fantastic furn|amart|nursery|garden|plant|spotlight|adairs|temple.*webster/i],
+  /* Precedence block. Some merchants are ambiguous by name: supermarket
+     brands also run petrol stations, and motoring clubs also run holiday
+     parks. These specific patterns must be tested before the generic brand
+     rules below, otherwise fuel gets filed as groceries. */
+  ['fuel', /(woolworth|coles|ampol)\w*\s*(petrol|express|fuel|servo)|petrol station/i],
+  ['travel', /nrma\s*(parks|holiday|resort)|racv\s*(resort|club|park)/i],
+  ['transport', /(city of|council)[^a-z]*.*parking|parking (meter|station|fee)/i],
+
+  ['food', /woolworth|\bwoolies\b|coles|aldi|\biga\b|foodworks|costco|grocer|harris farm|supabarn|drakes|spudshed|butcher|greengrocer|fruit\s*&?\s*veg|market\s*fresh|night owl|friendly grocer/i],
+  ['dining', /mcdonald|\bmcd\b|kfc|hungry jack|guzman|nando|domino|pizza|sushi|noodle|restaurant|bistro|kebab|grill|uber\s*eats|ubereats|doordash|menulog|deliveroo|hello ?fresh|marley spoon|youfoodz|bakery|baker|thai|ramen|burger|schnitz|zambrero|betty.?s burgers|grill.?d|oporto|red rooster|subway|taco|dumpling|pho\b|curry|indian|chinese|vietnamese|japanese|korean|canteen|food court|diner|eatery|takeaway|fish\s*&?\s*chip/i],
+  ['coffee', /coffee|cafe|café|starbucks|gloria jean|\bboost juice\b|chatime|gong cha|espresso|roaster|roastery|\bbrew\b|barista|seven seeds|industry beans|st ?ali|campos|toby.?s estate|the grounds|degani|muffin break|donut king|krispy kreme|bubble tea|\bkoi\b|sharetea/i],
+  ['fuel', /\bbp\b|shell|caltex|ampol|7-eleven|united petro|mobil|petrol|fuel|servo|liberty fuel|metro petroleum|puma energy|vibe petroleum|on the run|\botr\b|coles express|woolworths petrol|ev charg|chargefox|evie network/i],
+  ['transport', /uber(?!\s*eats)|didi|\bola\b|taxi|13cabs|silver top|opal|myki|translink|go card|smartrider|metrocard|\bptv\b|transport for nsw|\btfnsw\b|metro\b|train|tram|\bbus\b|ferry|parking|wilson park|secure park|care park|ace park|\btoll\b|linkt|e-?toll|eastlink|citylink|\bgo via\b|transurban|car ?share|\bgogetd?\b|car next door|lime\b|neuron|beam\b/i],
+  ['housing', /\brent\b|rental payment|mortgage|home loan|real estate|property manage|\bstrata\b|body corp|owners corp|ray white|\blj hooker\b|barry plant|jellis craig|nelson alexander|harcourts|first national|bond\b/i],
+  ['utilities', /\bagl\b|origin energy|energy australia|energyaustralia|alinta|red energy|simply energy|powershop|momentum energy|lumo|dodo power|tango energy|\bynergy\b|water corp|sydney water|sa water|unitywater|yarra valley|south east water|greater western water|icon water|electric|\bgas\b(?!oline)|council rates|\bcity of\b|shire council|\bcouncil\b/i],
+  ['internet', /telstra|optus.*(nbn|internet)|aussie broadband|superloop|\btpg\b|iinet|launtel|\bnbn\b|exetel|leaptel|more telecom|dodo internet|starlink/i],
+  ['phone', /amaysim|boost mobile|kogan mobile|felix mobile|belong|catch connect|mobile plan|prepaid recharge|vodafone|\btelstra mobile\b|optus mobile|aldi mobile|lebara|lycamobile|circles\.?life|moose mobile|superloop mobile/i],
+  ['streaming', /netflix|spotify|disney|\bstan\b|\bbinge\b|kayo|foxtel|amazon prime|prime video|youtube ?premium|youtube ?music|apple\.?com\/bill|apple music|\bitunes\b|icloud|patreon|audible|paramount|crunchyroll|adobe|microsoft ?365|office ?365|chatgpt|openai|claude|anthropic|github|notion|canva|dropbox|google ?one|\bgsuite\b|figma|linkedin premium|duolingo|strava|headspace|calm\b|nordvpn|expressvpn|\bmubi\b|\bcuriosity\b|docusign|zoom\.us|slack|substack|medium\.com/i],
+  ['health', /chemist|pharmacy|priceline|terry white|amcal|\bblooms\b|\bmedical\b|doctor|\bgp\b|clinic|pathology|physio|chiro|osteo|psycholog|psychiatr|hospital|medicare|healthscope|sonic health|dorevitch|melbourne path|\bqml\b|4cyte|radiolog|imaging|\bivf\b/i],
+  ['medical', /dental|dentist|orthodont|endodont|optical|\bopsm\b|specsavers|bailey nelson|oscar wylee|laubman|optometr/i],
+  ['gym', /\bgym\b|fitness|anytime|\bf45\b|goodlife|plus fitness|snap fitness|jetts|crossfit|pilates|yoga|\bbarre\b|climbing|bouldering|swim|aquatic|\bymca\b|genesis health|fernwood|club lime|body fit/i],
+  ['insurance', /insurance|\bnrma\b|\bracv\b|\bracq\b|\braa\b|\baami\b|budget direct|allianz|\bqbe\b|suncorp|\bgio\b|youi|bingle|bupa|medibank|\bahm\b|\bhcf\b|\bnib\b|frank health|australian unity|\bhbf\b|real insurance|petsure|trupanion/i],
+  ['education', /universit|monash|unimelb|\busyd\b|\bunsw\b|\brmit\b|deakin|swinburne|\bqut\b|griffith|macquarie|\butas\b|\banu\b|\btafe\b|coursera|udemy|edx\b|skillshare|masterclass|textbook|booktopia|student servic|amenities fee|\bssaf\b|\bhecs\b|help debt|tuition|school fee|\bexam\b/i],
+  ['clothing', /uniqlo|h ?& ?m|\bzara\b|cotton on|country road|\bseed\b|witchery|sportsgirl|glassons|universal store|general pants|\bmyer\b|david jones|\basos\b|the iconic|\bshein\b|\bnike\b|adidas|new balance|\bvans\b|converse|dr\.? ?martens|sneaker|\bshoe|platypus|hype ?dc|\brm williams\b|lorna jane|lululemon/i],
+  ['shopping', /kmart|target|big ?w|amazon|\bebay\b|\btemu\b|\bcatch\b|officework|jb ?hi-? ?fi|\bthe good guys\b|harvey norman|bunnings|mitre ?10|\bbcf\b|supercheap|repco|autobarn|australia ?post|auspost|chemist warehouse|daiso|\bmuji\b|typo\b|smiggle|dusk\b|\bebay\b|marketplace purchase/i],
+  ['beauty', /barber|\bhair\b|salon|\bnails?\b|sephora|\bmecca\b|beauty|skincare|\bspa\b|waxing|laser clinic|brows|lashes|massage|\bulta\b|priceline.*cosmetic/i],
+  ['alcohol', /dan murphy|\bbws\b|liquorland|liquor|cellarbrations|vintage cellars|brewery|brewing|bottle ?shop|bottle-?o|first choice liquor|\bwinery\b|\bcellar\b|aldi liquor|\bpub\b|tavern|hotel bar|\bbar\b(?!ber)|distiller/i],
+  ['entertainment', /cinema|hoyts|village cinema|event cinema|\bimax\b|palace cinema|nova cinema|reading cinema|ticketek|ticketmaster|eventbrite|\bmoshtix\b|oztix|humanitix|concert|festival|theatre|comedy|museum|gallery|\bzoo\b|aquarium|bowling|escape room|mini golf|arcade|karaoke|luna park|theme park/i],
+  ['gaming', /steam(?!\s*clean)|steamgames|playstation|\bpsn\b|\bxbox\b|nintendo|epic ?games|riot ?games|blizzard|battle\.net|roblox|twitch|\beb games\b|jb.*games|humble ?bundle|\bgog\.com\b|ubisoft|\bea\b ?(games|play)|minecraft|discord nitro/i],
+  ['travel', /qantas|jetstar|virgin australia|\brex\b|bonza|air ?new zealand|singapore air|emirates|cathay|scoot|airasia|airbnb|booking\.?com|expedia|agoda|\bhotels?\.com\b|trivago|wotif|stayz|\bhotel\b|motel|hostel|resort|flight cent|webjet|skyscanner|trip\.com|\bklook\b|get ?your ?guide|travel ?insurance|passport|visa applic|\bdfat\b|duty ?free|\bhertz\b|avis|budget ?car|thrifty|europcar|\bsixt\b|jucy|apollo camper|caravan park|\bbig4\b|nrma park/i],
+  ['pets', /petbarn|pet ?stock|petco|\bvet\b|veterinar|greencross|pet ?circle|budget ?pet|animal hospital|\brspca\b|groomer|doggy ?day/i],
+  ['sport', /\bsport\b|\bgolf\b|tennis|\bsurf\b|\bski\b|snowboard|rebel ?sport|decathlon|anaconda|kathmandu|macpac|paddy pallin|\bamart sport\b|cricket|football|soccer|netball|basketball|\bafl\b|\bnrl\b|club membership|season pass|\bmcc\b|\bmcg\b/i],
+  ['gifts', /gift ?card|gift ?voucher|\bflower|florist|\bbloom|hamper|\begift\b|prezzee|\bedible blooms\b/i],
+  ['charity', /donation|donate|charity|unicef|red cross|oxfam|\bwwf\b|rspca donat|fundraise|gofundme|\bgivit\b|salvation army|\bvinnies\b|beyond blue|cancer council|smith family|world vision/i],
+  ['home', /\bikea\b|freedom furn|fantastic furn|\bamart\b|nick scali|king living|nursery|\bgarden\b|\bplant\b|spotlight|adairs|sheridan|temple.*webster|\bpillow talk\b|house\b|kitchenware|\bhowards storage\b|beacon light|reece plumb|\bstratco\b|cleaner|cleaning service/i],
   ['childcare', /childcare|daycare|kindergarten|early learning|goodstart/i],
   ['tax', /\bato\b|tax office|account keeping fee|monthly fee|overdrawn fee|dishonour|late fee|interest charged|foreign (transaction|currency) fee|atm fee/i],
 ];
@@ -49,18 +57,42 @@ function normalise(text) {
 }
 
 const INCOME_RULES = [
-  ['salary', /salary|payroll|wages|pay run|employer|\bpay\b.*(pty|ltd)/i],
-  ['govt', /centrelink|services australia|austudy|youth allowance|\bato\b.*refund|tax refund|department of/i],
-  ['dividends', /dividend|distribution|franking|vanguard|betashares|commsec|selfwealth|stake\b/i],
-  ['refund', /refund|reversal|chargeback|return\b/i],
-  ['freelance', /invoice|freelance|contract|consult/i],
-  ['rental', /rent received|rental income|tenant/i],
-  ['gift-in', /gift|birthday|from mum|from dad/i],
-  ['side-hustle', /uber (driver|partner)|doordash driver|menulog courier|airtasker|etsy|gumtree|marketplace/i],
+  // Order matters: government and refunds are checked before the generic
+  // salary patterns, because an ATO refund also contains pay-like words.
+  ['govt', /centrelink|services australia|austudy|abstudy|youth allowance|jobseeker|family tax|\bftb\b|rent assistance|\bato\b.*refund|tax refund|department of|medicare benefit|\bdva\b/i],
+  ['refund', /refund|reversal|chargeback|\breturn\b|credit adjustment|price protection/i],
+  ['dividends', /dividend|distribution|franking|vanguard|betashares|commsec|selfwealth|\bstake\b|pearler|computershare|link market|\bdrp\b|interest paid|credit interest|bonus interest/i],
+  ['salary', /salary|payroll|wages|\bpay ?run\b|employer|\bpayg\b|fortnightly pay|weekly pay|\bpay\b.*(pty|ltd)|(pty|ltd).*\bpay\b|\bwage\b|remuneration|timesheet/i],
+  ['rental', /rent received|rental income|tenant|property manage.*(disburse|credit)/i],
+  ['side-hustle', /uber (driver|partner|trip)|doordash driver|menulog courier|airtasker|\betsy\b|gumtree|marketplace|\bfiverr\b|upwork|redbubble|\btwitch\b.*payout|youtube.*payout|stripe payout|square payout/i],
+  ['freelance', /invoice|freelance|contract(or)?\b|consult/i],
+  ['gift-in', /\bgift\b|birthday|from mum|from dad|christmas|\bxmas\b/i],
 ];
 
-const SAVINGS_RE = /savings? (transfer|deposit)|emergency fund|house deposit|holiday fund|save(r)? account|to savings/i;
-const INVEST_RE = /vanguard|betashares|commsec|selfwealth|\bstake\b|pearler|spaceship|\braiz\b|coinbase|binance|swyftx|coinspot|independent reserve|\betfs?\b|share purchase/i;
+const SAVINGS_RE = /savings? (transfer|deposit|contribution)|emergency fund|rainy day|house deposit|home deposit|holiday fund|travel fund|car fund|\bsinking fund\b|save(r)? account|to savings|savings goal|\bnest egg\b|term deposit|high interest saver/i;
+const INVEST_RE = /vanguard|betashares|\bvdhg\b|\bvas\b|\bvgs\b|\bivv\b|\bndq\b|\ba200\b|commsec|comm sec|selfwealth|\bstake\b|pearler|spaceship|\braiz\b|sharesies|superhero|\bsyfe\b|interactive broker|\bibkr\b|\bcmc market\b|nabtrade|\bbell direct\b|coinbase|binance|swyftx|coinspot|kraken|independent reserve|\bbtc markets\b|digital surge|\betfs?\b|share purchase|share trade|brokerage|dividend reinvest|\bdrp\b|managed fund|\bsuper contribution\b|salary sacrifice/i;
+
+/* Once a row is known to be savings or investment, pick the specific bucket
+   rather than dumping everything into General Savings / Stocks. */
+const SAVINGS_BUCKETS = [
+  ['emergency', /emergency|rainy day|buffer/i],
+  ['house', /house|home ?deposit|property|mortgage ?offset/i],
+  ['holiday', /holiday|travel|\btrip\b|vacation/i],
+  ['car', /\bcar\b|vehicle|motorbike/i],
+  ['retirement', /super|pension|retire/i],
+];
+
+const INVEST_BUCKETS = [
+  ['crypto', /coinbase|binance|swyftx|coinspot|kraken|independent reserve|btc markets|digital surge|bitcoin|\bbtc\b|ethereum|\beth\b|crypto/i],
+  ['super', /super contribution|salary sacrifice|\bsuper\b|\bsmsf\b/i],
+  ['realestate', /real ?estate|property trust|\breit\b/i],
+  ['bonds', /\bbond|fixed income|treasury/i],
+];
+
+function pick(rules, text, fallback) {
+  for (const [id, re] of rules) if (re.test(text)) return id;
+  return fallback;
+}
 
 /* Returns { type, category } — the type can be upgraded from a plain expense
    to 'savings'/'investment' when the description clearly says so, so money you
@@ -80,8 +112,8 @@ function categorise(tx) {
     return { type, category: 'misc-inc' };
   }
 
-  if (INVEST_RE.test(desc)) return { type: 'investment', category: 'stocks' };
-  if (SAVINGS_RE.test(desc)) return { type: 'savings', category: 'gen-savings' };
+  if (INVEST_RE.test(desc)) return { type: 'investment', category: pick(INVEST_BUCKETS, desc, 'stocks') };
+  if (SAVINGS_RE.test(desc)) return { type: 'savings', category: pick(SAVINGS_BUCKETS, desc, 'gen-savings') };
   for (const [id, re] of EXPENSE_RULES) if (re.test(text)) return { type, category: id };
   return { type, category: 'misc-exp' };
 }

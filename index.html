@@ -1452,8 +1452,8 @@ async function cloudPull(opts) {
   db.run('DELETE FROM transactions');
   db.run('DELETE FROM budgets');
   cloudData.transactions.forEach(t => {
-    db.run('INSERT OR REPLACE INTO transactions VALUES (?,?,?,?,?,?,?,?)',
-      [t.id, t.type, t.amount, t.description||'', t.category||'', t.date, t.note||'', t.bucket||'none']);
+    db.run('INSERT OR REPLACE INTO transactions (id,type,amount,description,category,date,note,bucket,source,autoCat) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [t.id, t.type, t.amount, t.description||'', t.category||'', t.date, t.note||'', t.bucket||'none', t.source||null, t.autoCat?1:0]);
   });
   if (cloudData.categories) {
     cloudData.categories.forEach(c => {
@@ -1675,12 +1675,21 @@ function createSchema(){
   db.run(`CREATE INDEX IF NOT EXISTS idx_tx_type ON transactions(type)`);
   // Migrate: add bucket column if missing (safe to run repeatedly)
   try { db.run(`ALTER TABLE transactions ADD COLUMN bucket TEXT DEFAULT 'none'`); } catch(e){}
+  // Bank-sync columns. Without these, the 8-column INSERTs below would drop
+  // them on every load, and the server could no longer tell an auto-guessed
+  // category from one you set by hand.
+  try { db.run(`ALTER TABLE transactions ADD COLUMN source TEXT`); } catch(e){}
+  try { db.run(`ALTER TABLE transactions ADD COLUMN autoCat INTEGER DEFAULT 0`); } catch(e){}
 }
 
 /* ── sync helpers: DB ↔ JS objects ──── */
 function syncFromDB(){
   // Transactions
-  TXS = dbQuery('SELECT * FROM transactions ORDER BY date DESC');
+  // SQLite has no boolean type, so autoCat comes back as 0/1. Normalise it
+  // here so the rest of the app (and the JSON pushed to the server) sees a
+  // real boolean, which is what ?action=recategorise checks.
+  TXS = dbQuery('SELECT * FROM transactions ORDER BY date DESC')
+    .map(t => ({ ...t, autoCat: t.autoCat === 1 || t.autoCat === true }));
 
   // Categories → rebuild CATS object
   CATS = loadDefaultCats();
@@ -1709,15 +1718,15 @@ function saveTxs(txArray){
   // Rewrite transactions table from current TXS array
   db.run('DELETE FROM transactions');
   TXS.forEach(t=>{
-    db.run('INSERT OR REPLACE INTO transactions VALUES (?,?,?,?,?,?,?,?)',
-      [t.id,t.type,t.amount,t.description||'',t.category||'',t.date,t.note||'',t.bucket||'none']);
+    db.run('INSERT OR REPLACE INTO transactions (id,type,amount,description,category,date,note,bucket,source,autoCat) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [t.id,t.type,t.amount,t.description||'',t.category||'',t.date,t.note||'',t.bucket||'none',t.source||null,t.autoCat?1:0]);
   });
   persistDB();
 }
 
 function saveSingleTx(t){
-  db.run('INSERT OR REPLACE INTO transactions VALUES (?,?,?,?,?,?,?,?)',
-    [t.id,t.type,t.amount,t.description||'',t.category||'',t.date,t.note||'',t.bucket||'none']);
+  db.run('INSERT OR REPLACE INTO transactions (id,type,amount,description,category,date,note,bucket,source,autoCat) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    [t.id,t.type,t.amount,t.description||'',t.category||'',t.date,t.note||'',t.bucket||'none',t.source||null,t.autoCat?1:0]);
   // keep TXS in sync
   const idx=TXS.findIndex(x=>x.id===t.id);
   if(idx>-1) TXS[idx]=t; else TXS.push(t);
@@ -1936,8 +1945,8 @@ function importBankCSV(event){
           note: prev ? (prev.note||'') : (file.name||'CSV import'),
           bucket: prev ? (prev.bucket||'none') : 'none',
         };
-        db.run('INSERT OR REPLACE INTO transactions (id,type,amount,description,category,date,note,bucket) VALUES (?,?,?,?,?,?,?,?)',
-          [row.id,row.type,row.amount,row.description,row.category,row.date,row.note,row.bucket]);
+        db.run('INSERT OR REPLACE INTO transactions (id,type,amount,description,category,date,note,bucket,source,autoCat) VALUES (?,?,?,?,?,?,?,?,?,?)',
+          [row.id,row.type,row.amount,row.description,row.category,row.date,row.note,row.bucket,'csv',prev?0:1]);
         prev ? updated++ : added++;
       });
 
@@ -2155,8 +2164,8 @@ async function init(){
       createSchema();
       // Import cloud transactions
       cloudData.transactions.forEach(t => {
-        db.run('INSERT OR REPLACE INTO transactions VALUES (?,?,?,?,?,?,?,?)',
-          [t.id, t.type, t.amount, t.description||'', t.category||'', t.date, t.note||'', t.bucket||'none']);
+        db.run('INSERT OR REPLACE INTO transactions (id,type,amount,description,category,date,note,bucket,source,autoCat) VALUES (?,?,?,?,?,?,?,?,?,?)',
+          [t.id, t.type, t.amount, t.description||'', t.category||'', t.date, t.note||'', t.bucket||'none', t.source||null, t.autoCat?1:0]);
       });
       // Import cloud categories
       if(cloudData.categories) {
@@ -3079,11 +3088,17 @@ function saveTransaction(){
   if(!date){alert('Please select a date');return;}
   if(!selectedCategory){alert('Please select a category');return;}
 
+  const prev = TXS.find(t=>String(t.id)===String(editingId));
   const tx={
     id: editingId || ('tx-'+Date.now()),
     type:currentType, amount, description:desc,
     category:selectedCategory, date, note,
-    bucket: selectedBucket||'none'
+    bucket: selectedBucket||'none',
+    // Keep the bank linkage so a later sync still matches this row by id.
+    ...(prev && prev.source ? {source: prev.source} : {}),
+    // Saving by hand makes this your decision, not a guess, so the server's
+    // ?action=recategorise pass will leave this row alone from now on.
+    autoCat: false
   };
   saveSingleTx(tx);
   showToast(editingId?'Transaction updated':'Transaction saved');
