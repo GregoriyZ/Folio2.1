@@ -1594,6 +1594,50 @@ async function bankStatus(){
   }catch(e){ showToast(e.message,'error'); }
 }
 
+/* Show every transaction still sitting in "Other", grouped by description and
+   sorted by total spend — the shortlist worth writing rules for. */
+async function bankUncategorised(){
+  try{
+    const d = await syncFetch('?action=uncategorised');
+    const rows = d.rows || [];
+    if(!rows.length){
+      showToast('Nothing in Other — everything is categorised');
+      return d;
+    }
+    console.table(rows.map(r=>({
+      description: r.description,
+      times: r.count,
+      total: '$' + Number(r.total||0).toFixed(2),
+    })));
+    console.log('Full detail:', d);
+    showToast(rows.length + ' uncategorised merchants (' + d.uncategorised + ' of ' + d.ofTotal + ') — see console');
+    return d;
+  }catch(e){ showToast(e.message,'error'); }
+}
+
+/* Re-run the categorisation rules over rows you have never edited by hand.
+   Defaults to a dry run: call bankRecategorise(true) to actually write. */
+async function bankRecategorise(apply){
+  try{
+    const d = await syncFetch('?action=recategorise' + (apply ? '&apply=1' : ''));
+    if(!d.changed){
+      showToast('No changes needed — categories already match the rules');
+      return d;
+    }
+    console.table(d.changes || []);
+    if(apply){
+      showToast('Updated ' + d.changed + ' transactions — reloading');
+      // cloudPull refreshes the local DB from the server copy the endpoint
+      // just rewrote, and re-renders on its way out.
+      await cloudPull({silent:true});
+    }else{
+      console.log('Dry run only. Run bankRecategorise(true) to apply these.');
+      showToast(d.changed + ' would change — see console, then bankRecategorise(true)');
+    }
+    return d;
+  }catch(e){ showToast(e.message,'error'); }
+}
+
 /* ── status / toast ─────────────────── */
 let _saveTimer = null;
 function setSaveStatus(state){

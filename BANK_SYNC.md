@@ -120,17 +120,29 @@ To tune the rules, edit `api/_lib/categorise.js` — it is a plain list of
 ### Improving accuracy on your own data
 
 Rules can only match descriptors they have seen. To find what is actually
-wrong, ask the ledger rather than guessing:
+wrong, ask the ledger rather than guessing.
+
+**The easy way — the browser console.** Open Folio, press `F12` (or
+`Cmd+Option+J` on a Mac), click **Console**, and type:
+
+```js
+bankUncategorised()      // what is sitting in Other, worst first
+bankRecategorise()       // dry run: what the rules would change
+bankRecategorise(true)   // apply it, then reload the page data
+```
+
+These reuse the sync token already saved in your browser, so there is nothing
+to paste. Results print as a table in the console.
+
+`bankUncategorised()` lists every row in **Other**, grouped by description and
+sorted by total spend, so the merchants worth a rule are at the top. Add them
+to `api/_lib/categorise.js`, then preview with `bankRecategorise()` before
+committing with `bankRecategorise(true)`.
+
+**The manual way — the URL bar.** Same thing, but you must supply the token:
 
 ```
 /api/sync?action=uncategorised&token=…
-```
-
-That returns every row sitting in **Other**, grouped by description and sorted
-by total spend, so the merchants worth writing a rule for are at the top. Add
-them to `api/_lib/categorise.js`, then preview the effect:
-
-```
 /api/sync?action=recategorise&token=…            # dry run, writes nothing
 /api/sync?action=recategorise&apply=1&token=…    # commit the changes
 ```
@@ -169,7 +181,9 @@ requested as-is, so the scheduled window comes from `SYNC_DAYS` instead.
 Scheduled calls are authorised by Vercel's `vercel-cron/1.0` user agent, or by
 `CRON_SECRET` as a bearer token when you set one (recommended).
 
-In the browser console: `bankStatus()`, `bankAccounts()`, `bankSync()`.
+In the browser console: `bankStatus()`, `bankAccounts()`, `bankSync()`,
+`bankUncategorised()`, `bankRecategorise()`. All of them reuse the token
+already stored in your browser.
 
 ## Still available: free CSV import
 
