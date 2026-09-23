@@ -76,6 +76,7 @@ Project → Settings → Environment Variables:
 | `UP_API_TOKEN` | `up:yeah:…` | for Up only |
 | `CRON_SECRET` | optional; when set, Vercel sends it as a bearer on cron calls and the sync requires it | optional |
 | `SYNC_DAYS` | optional; history window for the scheduled run (default 45) | optional |
+| `FOLIO_OWN_NAME` | your full name, e.g. `Hryhorii Zherebylo` — lets Folio recognise transfers between your own accounts | strongly recommended |
 
 Then redeploy.
 
@@ -110,6 +111,27 @@ Government, and so on.
 Transfers to savings and buys through Vanguard / CommSec / Pearler etc. are
 promoted to `savings` / `investment` type, so moving money around does not get
 counted as spending.
+
+### Internal transfers (important)
+
+Moving money between your own accounts is neither income nor spending, but the
+bank feed reports each leg separately: the debit looks like an expense and the
+credit looks like income. Left uncorrected **every transfer inflates both
+totals by the same amount**, so income, expenses, category charts and your
+savings rate all read high.
+
+Folio detects these and marks them `transfer`, which is excluded from every
+total while still being visible in the transaction list. Detection covers:
+
+- `Transfer\nxxxx0955|xxxxx3137` style rows between your own account numbers
+- Osko / PayID payments to or from **your own name**, including the
+  surname-first form banks use (`ZHEREBYLO H`)
+- the `Starting Balance` row a feed emits when it first connects
+
+Name matching needs `FOLIO_OWN_NAME`. Without it only the structural cases are
+caught, and payments to yourself still count as real income. A surname alone is
+deliberately **not** matched, because relatives share it and their genuine
+payments would be erased.
 
 Anything unmatched lands in **Other**. Re-categorise it once in Folio and it
 stays that way forever.

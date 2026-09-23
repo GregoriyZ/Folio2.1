@@ -14,7 +14,7 @@ const EXPENSE_RULES = [
   ['transport', /(city of|council)[^a-z]*.*parking|parking (meter|station|fee)/i],
 
   ['food', /woolworth|\bwoolies\b|coles|aldi|\biga\b|foodworks|costco|grocer|harris farm|supabarn|drakes|spudshed|butcher|greengrocer|fruit\s*&?\s*veg|market\s*fresh|night owl|friendly grocer/i],
-  ['dining', /mcdonald|\bmcd\b|kfc|hungry jack|guzman|nando|domino|pizza|sushi|noodle|restaurant|bistro|kebab|grill|uber\s*eats|ubereats|doordash|menulog|deliveroo|hello ?fresh|marley spoon|youfoodz|bakery|baker|thai|ramen|burger|schnitz|zambrero|betty.?s burgers|grill.?d|oporto|red rooster|subway|taco|dumpling|pho\b|curry|indian|chinese|vietnamese|japanese|korean|canteen|food court|diner|eatery|takeaway|fish\s*&?\s*chip/i],
+  ['dining', /mcdonald|\bmcd\b|kfc|hungry jack|guzman|nando|domino|pizza|sushi|noodle|restaurant|bistro|kebab|grill|uber\s*eats|ubereats|doordash|menulog|deliveroo|hello ?fresh|marley spoon|youfoodz|bakery|baker|thai|ramen|burger|schnitz|zambrero|betty.?s burgers|grill.?d|oporto|red rooster|subway|taco|dumpling|pho\b|curry|indian|chinese|vietnamese|japanese|korean|canteen|food court|diner|eatery|takeaway|take ?away|fish\s*&?\s*chip|\bwok\b|charc(oal)?\b|\bbbq\b|chicken|souvlaki|gelato|ice ?cream|dessert|\bpho\b|\byum cha\b|hotpot|\bsteak|seafood|oyster|tapas|\bdeli\b/i],
   ['coffee', /coffee|cafe|café|starbucks|gloria jean|\bboost juice\b|chatime|gong cha|espresso|roaster|roastery|\bbrew\b|barista|seven seeds|industry beans|st ?ali|campos|toby.?s estate|the grounds|degani|muffin break|donut king|krispy kreme|bubble tea|\bkoi\b|sharetea/i],
   ['fuel', /\bbp\b|shell|caltex|ampol|7-eleven|united petro|mobil|petrol|fuel|servo|liberty fuel|metro petroleum|puma energy|vibe petroleum|on the run|\botr\b|coles express|woolworths petrol|ev charg|chargefox|evie network/i],
   ['transport', /uber(?!\s*eats)|didi|\bola\b|taxi|13cabs|silver top|opal|myki|translink|go card|smartrider|metrocard|\bptv\b|transport for nsw|\btfnsw\b|metro\b|train|tram|\bbus\b|ferry|parking|wilson park|secure park|care park|ace park|\btoll\b|linkt|e-?toll|eastlink|citylink|\bgo via\b|transurban|car ?share|\bgogetd?\b|car next door|lime\b|neuron|beam\b/i],
@@ -23,10 +23,16 @@ const EXPENSE_RULES = [
   ['internet', /telstra|optus.*(nbn|internet)|aussie broadband|superloop|\btpg\b|iinet|launtel|\bnbn\b|exetel|leaptel|more telecom|dodo internet|starlink/i],
   ['phone', /amaysim|boost mobile|kogan mobile|felix mobile|belong|catch connect|mobile plan|prepaid recharge|vodafone|\btelstra mobile\b|optus mobile|aldi mobile|lebara|lycamobile|circles\.?life|moose mobile|superloop mobile/i],
   ['streaming', /netflix|spotify|disney|\bstan\b|\bbinge\b|kayo|foxtel|amazon prime|prime video|youtube ?premium|youtube ?music|apple\.?com\/bill|apple music|\bitunes\b|icloud|patreon|audible|paramount|crunchyroll|adobe|microsoft ?365|office ?365|chatgpt|openai|claude|anthropic|github|notion|canva|dropbox|google ?one|\bgsuite\b|figma|linkedin premium|duolingo|strava|headspace|calm\b|nordvpn|expressvpn|\bmubi\b|\bcuriosity\b|docusign|zoom\.us|slack|substack|medium\.com/i],
+  ['streaming', /apple\s*\(app store\)|app ?store|google\*|google ?workspace|play ?store/i],
   ['health', /chemist|pharmacy|priceline|terry white|amcal|\bblooms\b|\bmedical\b|doctor|\bgp\b|clinic|pathology|physio|chiro|osteo|psycholog|psychiatr|hospital|medicare|healthscope|sonic health|dorevitch|melbourne path|\bqml\b|4cyte|radiolog|imaging|\bivf\b/i],
   ['medical', /dental|dentist|orthodont|endodont|optical|\bopsm\b|specsavers|bailey nelson|oscar wylee|laubman|optometr/i],
   ['gym', /\bgym\b|fitness|anytime|\bf45\b|goodlife|plus fitness|snap fitness|jetts|crossfit|pilates|yoga|\bbarre\b|climbing|bouldering|swim|aquatic|\bymca\b|genesis health|fernwood|club lime|body fit/i],
   ['insurance', /insurance|\bnrma\b|\bracv\b|\bracq\b|\braa\b|\baami\b|budget direct|allianz|\bqbe\b|suncorp|\bgio\b|youi|bingle|bupa|medibank|\bahm\b|\bhcf\b|\bnib\b|frank health|australian unity|\bhbf\b|real insurance|petsure|trupanion/i],
+  ['insurance', /shannons/i],
+  // VicRoads/Service NSW registration and licence fees.
+  ['transport', /vicroads|service ?nsw|\bvic ?roads\b|rego\b|registration renewal|transport ?dept/i],
+  // Australia Post retail outlets appear as "POST <SUBURB> POST".
+  ['shopping', /^post\s+.*post\b|\bpost office\b/i],
   ['education', /universit|monash|unimelb|\busyd\b|\bunsw\b|\brmit\b|deakin|swinburne|\bqut\b|griffith|macquarie|\butas\b|\banu\b|\btafe\b|coursera|udemy|edx\b|skillshare|masterclass|textbook|booktopia|student servic|amenities fee|\bssaf\b|\bhecs\b|help debt|tuition|school fee|\bexam\b/i],
   ['clothing', /uniqlo|h ?& ?m|\bzara\b|cotton on|country road|\bseed\b|witchery|sportsgirl|glassons|universal store|general pants|\bmyer\b|david jones|\basos\b|the iconic|\bshein\b|\bnike\b|adidas|new balance|\bvans\b|converse|dr\.? ?martens|sneaker|\bshoe|platypus|hype ?dc|\brm williams\b|lorna jane|lululemon/i],
   ['shopping', /kmart|target|big ?w|amazon|\bebay\b|\btemu\b|\bcatch\b|officework|jb ?hi-? ?fi|\bthe good guys\b|harvey norman|bunnings|mitre ?10|\bbcf\b|supercheap|repco|autobarn|australia ?post|auspost|chemist warehouse|daiso|\bmuji\b|typo\b|smiggle|dusk\b|\bebay\b|marketplace purchase/i],
@@ -36,7 +42,7 @@ const EXPENSE_RULES = [
   ['gaming', /steam(?!\s*clean)|steamgames|playstation|\bpsn\b|\bxbox\b|nintendo|epic ?games|riot ?games|blizzard|battle\.net|roblox|twitch|\beb games\b|jb.*games|humble ?bundle|\bgog\.com\b|ubisoft|\bea\b ?(games|play)|minecraft|discord nitro/i],
   ['travel', /qantas|jetstar|virgin australia|\brex\b|bonza|air ?new zealand|singapore air|emirates|cathay|scoot|airasia|airbnb|booking\.?com|expedia|agoda|\bhotels?\.com\b|trivago|wotif|stayz|\bhotel\b|motel|hostel|resort|flight cent|webjet|skyscanner|trip\.com|\bklook\b|get ?your ?guide|travel ?insurance|passport|visa applic|\bdfat\b|duty ?free|\bhertz\b|avis|budget ?car|thrifty|europcar|\bsixt\b|jucy|apollo camper|caravan park|\bbig4\b|nrma park/i],
   ['pets', /petbarn|pet ?stock|petco|\bvet\b|veterinar|greencross|pet ?circle|budget ?pet|animal hospital|\brspca\b|groomer|doggy ?day/i],
-  ['sport', /\bsport\b|\bgolf\b|tennis|\bsurf\b|\bski\b|snowboard|rebel ?sport|decathlon|anaconda|kathmandu|macpac|paddy pallin|\bamart sport\b|cricket|football|soccer|netball|basketball|\bafl\b|\bnrl\b|club membership|season pass|\bmcc\b|\bmcg\b/i],
+  ['sport', /\bsport\b|\bgolf\b|tennis|\bsurf\b|\bski\b|snowboard|rebel ?sport|decathlon|anaconda|kathmandu|macpac|paddy pallin|\bamart sport\b|cricket|football|soccer|netball|basketb|\bafl\b|\bnrl\b|club membership|season pass|\bmcc\b|\bmcg\b|stadium|leisure centre|rec ?centre/i],
   ['gifts', /gift ?card|gift ?voucher|\bflower|florist|\bbloom|hamper|\begift\b|prezzee|\bedible blooms\b/i],
   ['charity', /donation|donate|charity|unicef|red cross|oxfam|\bwwf\b|rspca donat|fundraise|gofundme|\bgivit\b|salvation army|\bvinnies\b|beyond blue|cancer council|smith family|world vision/i],
   ['home', /\bikea\b|freedom furn|fantastic furn|\bamart\b|nick scali|king living|nursery|\bgarden\b|\bplant\b|spotlight|adairs|sheridan|temple.*webster|\bpillow talk\b|house\b|kitchenware|\bhowards storage\b|beacon light|reece plumb|\bstratco\b|cleaner|cleaning service/i],
@@ -61,6 +67,9 @@ const INCOME_RULES = [
   // salary patterns, because an ATO refund also contains pay-like words.
   ['govt', /centrelink|services australia|austudy|abstudy|youth allowance|jobseeker|family tax|\bftb\b|rent assistance|\bato\b.*refund|tax refund|department of|medicare benefit|\bdva\b/i],
   ['refund', /refund|reversal|chargeback|\breturn\b|credit adjustment|price protection/i],
+  // Money coming back out of a broker or a university is a return of your own
+  // funds, not earnings.
+  ['refund', /direct credit\s+(superhero|selfwealth|stake|pearler|commsec)|universit|monash|unimelb|\brmit\b/i],
   ['dividends', /dividend|distribution|franking|vanguard|betashares|commsec|selfwealth|\bstake\b|pearler|computershare|link market|\bdrp\b|interest paid|credit interest|bonus interest/i],
   ['salary', /salary|payroll|wages|\bpay ?run\b|employer|\bpayg\b|fortnightly pay|weekly pay|\bpay\b.*(pty|ltd)|(pty|ltd).*\bpay\b|\bwage\b|remuneration|timesheet/i],
   ['rental', /rent received|rental income|tenant|property manage.*(disburse|credit)/i],
@@ -70,6 +79,51 @@ const INCOME_RULES = [
 ];
 
 const SAVINGS_RE = /savings? (transfer|deposit|contribution)|emergency fund|rainy day|house deposit|home deposit|holiday fund|travel fund|car fund|\bsinking fund\b|save(r)? account|to savings|savings goal|\bnest egg\b|term deposit|high interest saver/i;
+
+/* ── Internal transfers ──────────────────────────────────────────────────
+   Moving money between your own accounts is not income and not spending, but
+   a CDR feed reports each leg separately: the debit side looks like an
+   expense, the credit side like income. Left alone, every transfer inflates
+   BOTH totals by the same amount and the ledger silently double-counts.
+
+   Set FOLIO_OWN_NAME (e.g. "Hryhorii Zherebylo") so payments to and from
+   yourself are recognised. Multiple names can be comma-separated. */
+const OWN_NAME_RE = (() => {
+  const raw = (process.env.FOLIO_OWN_NAME || '').trim();
+  if (!raw) return null;
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = [];
+  for (const name of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
+    parts.push(esc(name).replace(/\s+/g, '\\s+'));
+    // Banks also render a name surname-first and abbreviate the given name,
+    // e.g. "Hryhorii Zherebylo" arrives as "ZHEREBYLO H".
+    const words = name.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      const last = words[words.length - 1];
+      const firstInitial = words[0][0];
+      parts.push(esc(last) + '\\s+' + esc(firstInitial) + '\\b');
+      // Deliberately NOT matching the surname alone: relatives share it, and
+      // treating their payments as your own transfers would erase real
+      // income and spending.
+    }
+  }
+  return parts.length ? new RegExp(parts.join('|'), 'i') : null;
+})();
+
+/* Structural transfer markers that do not depend on knowing your name:
+   ubank/NAB "Transfer\nxxxx1234|xxxx5678" between your own account numbers,
+   and the opening balance row a bank emits when a feed starts. */
+const TRANSFER_RE = /^transfer\b.*\|/i;
+const OPENING_RE = /^(starting|opening) balance$/i;
+
+function isInternalTransfer(text) {
+  if (TRANSFER_RE.test(text) || OPENING_RE.test(text)) return true;
+  if (!OWN_NAME_RE || !OWN_NAME_RE.test(text)) return false;
+  // Your name appearing in a merchant string is not a transfer; require it to
+  // look like a person-to-person payment or a bare name.
+  return /osko|payid|payment (to|from)|transfer|^[a-z\s.'-]+\s*[a-z]?\d{6,}$|^[a-z\s.'-]+$/i.test(text);
+}
+
 const INVEST_RE = /vanguard|betashares|\bvdhg\b|\bvas\b|\bvgs\b|\bivv\b|\bndq\b|\ba200\b|commsec|comm sec|selfwealth|\bstake\b|pearler|spaceship|\braiz\b|sharesies|superhero|\bsyfe\b|interactive broker|\bibkr\b|\bcmc market\b|nabtrade|\bbell direct\b|coinbase|binance|swyftx|coinspot|kraken|independent reserve|\bbtc markets\b|digital surge|\betfs?\b|share purchase|share trade|brokerage|dividend reinvest|\bdrp\b|managed fund|\bsuper contribution\b|salary sacrifice/i;
 
 /* Once a row is known to be savings or investment, pick the specific bucket
@@ -107,8 +161,18 @@ function categorise(tx) {
   const type = tx.type === 'income' ? 'income' : 'expense';
   if (!text) return { type, category: type === 'income' ? 'misc-inc' : 'misc-exp' };
 
+  // Checked first: an internal transfer is neither income nor spending, and
+  // misreading one inflates both totals at once.
+  if (isInternalTransfer(desc)) return { type: 'transfer', category: 'misc-exp' };
+
   if (type === 'income') {
     for (const [id, re] of INCOME_RULES) if (re.test(text)) return { type, category: id };
+    // Some feeds mis-sign card purchases at clubs and venues as credits. If a
+    // row the bank called income matches a clear merchant rule and no income
+    // rule at all, trust the merchant: a basketball club is not paying you.
+    for (const [id, re] of EXPENSE_RULES) {
+      if (re.test(text)) return { type: 'expense', category: id };
+    }
     return { type, category: 'misc-inc' };
   }
 

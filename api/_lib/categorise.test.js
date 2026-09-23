@@ -7,6 +7,10 @@
  * Every case below is a real Australian bank descriptor shape.
  */
 
+// Internal-transfer detection reads FOLIO_OWN_NAME at load time, so it is set
+// before the module is required. The suite pins a known value rather than
+// depending on whatever the environment happens to hold.
+process.env.FOLIO_OWN_NAME = 'Hryhorii Zherebylo';
 const { categorise } = require('./categorise');
 
 const cases = [
@@ -65,6 +69,37 @@ const cases = [
   ['MONASH UNIVERSITY', null, 'expense', 'expense', 'education'],
   ['ANYTIME FITNESS', null, 'expense', 'expense', 'gym'],
   ['STEAM GAMES', null, 'expense', 'expense', 'gaming'],
+
+  // ── Real descriptors from a live ANZ/ubank/NAB feed ──────────────────
+  // Internal transfers: counted as BOTH income and expense before this,
+  // double-counting every move between the user's own accounts.
+  ['Transfer\\nxxxx0955|xxxxx3137|SAV', null, 'expense', 'transfer', 'misc-exp'],
+  ['Transfer\\nxxxx7974|xxxxx3137', null, 'income', 'transfer', 'misc-exp'],
+  ['Osko payment From MR HRYHORII ZHEREBYLO Ref#xxxxx2474', null, 'income', 'transfer', 'misc-exp'],
+  ['Payment to Hryhorii Zherebylo #506699', null, 'expense', 'transfer', 'misc-exp'],
+  ['Osko payment From ZHEREBYLO H Ref#xxxxx3645', null, 'income', 'transfer', 'misc-exp'],
+  ['Starting Balance', null, 'income', 'transfer', 'misc-exp'],
+
+  // A relative sharing the surname must NOT be treated as an own-account move.
+  ['VLADYSLAV ZHEREBYLO W6682637796', null, 'expense', 'expense', 'misc-exp'],
+
+  // Bank mis-signs some card purchases as credits; a club is not paying you.
+  ['9 McKinnon Basketb Zherebylo. Hryho', null, 'income', 'expense', 'sport'],
+  ['SQ *SOUTHERN BASKETBALL ACheltenham   AU', null, 'expense', 'expense', 'sport'],
+
+  ['Direct Debit SHANNONS INSUR - SCMxxxxx4069', null, 'expense', 'expense', 'insurance'],
+  ['BPAY Payment to VICROADS\\nVICROADS|216291', null, 'expense', 'expense', 'transport'],
+  ['Apple (App Store)', null, 'expense', 'expense', 'streaming'],
+  ['GOOGLE*WORKSPACE SKALE   CC GOOGLE.COMAU', null, 'expense', 'expense', 'streaming'],
+  ['POST ELSTERNWICK POST    ELSTERNWICK  AU', null, 'expense', 'expense', 'shopping'],
+  ['SQ *MAVI TAKEAWAY        Dromana      AU', null, 'expense', 'expense', 'dining'],
+  ['Tasty Wok Pty Ltd        Clayton      AU', null, 'expense', 'expense', 'dining'],
+  ['Credit interest paid', null, 'income', 'income', 'dividends'],
+  ['Direct Credit Superhero - T9584362-198833', null, 'income', 'income', 'refund'],
+
+  // Genuine third-party payments stay real income/expense.
+  ['Payment from T J Krause', null, 'income', 'income', 'misc-inc'],
+  ['Osko payment To K MARTINOV Ref#xxxxx6790', null, 'expense', 'expense', 'misc-exp'],
 ];
 
 let pass = 0;

@@ -2729,7 +2729,9 @@ function renderTransactions(){
   const sorted=Object.keys(grouped).sort((a,b)=>new Date(b)-new Date(a));
   container.innerHTML='<div class="tx-list">'+sorted.map(d=>{
     const dayTxs=grouped[d];
-    const dayTotal=dayTxs.reduce((a,t)=>t.type==='income'?a+t.amount:a-t.amount,0);
+    // Transfers are excluded: both legs of an internal move would otherwise
+    // appear in the same day's total and cancel out misleadingly.
+    const dayTotal=dayTxs.reduce((a,t)=>t.type==='transfer'?a:(t.type==='income'?a+t.amount:a-t.amount),0);
     return `<div class="tx-date-grp" style="display:flex;justify-content:space-between">
       <span>${fmtDate(d)}</span>
       <span style="font-weight:600;color:${dayTotal>=0?'var(--green)':'var(--red)'}">${fmt(dayTotal,true)}</span>
@@ -2782,6 +2784,9 @@ function renderAnalytics(){
     const d=new Date(t.date+'T12:00:00');
     const k=MONTHS[d.getMonth()].slice(0,3)+" '"+String(d.getFullYear()).slice(2);
     if(!byMonth[k])byMonth[k]=0;
+    // Transfers move money between your own accounts, so they must not shift
+    // the net line: counting them would subtract money that never left.
+    if(t.type==='transfer') return;
     if(t.type==='income')byMonth[k]+=t.amount;
     else byMonth[k]-=t.amount;
   });
